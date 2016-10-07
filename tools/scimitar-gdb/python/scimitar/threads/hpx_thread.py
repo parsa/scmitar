@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Scimitar: Ye Distributed Debugger
-# 
+#
 # Copyright (c) 2016 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
@@ -58,31 +58,31 @@ class HPXThread():
         #           hpx::threads::thread_state_ex_enum
         #       >, void>
         #    > = { m_storage = 360569445166350338 }, <No data fields>
-        #  }, 
-        #  component_id_ = 8198320, 
-        #  description_ = thread_description {{ [desc] {0x7ffff4aa0cb5 "call_startup_functions_action"} }}, 
-        #  lco_description_ = thread_description {{ [desc] {0x7ffff4918a9d "<unknown>"} }}, 
-        #  parent_locality_id_ = 0, 
-        #  parent_thread_id_ = 0x7f3090, 
-        #  parent_thread_phase_ = 1, 
-        #  marked_state_ = hpx::threads::unknown, 
-        #  priority_ = hpx::threads::thread_priority_normal, 
-        #  requested_interrupt_ = false, 
-        #  enabled_interrupt_ = true, 
-        #  ran_exit_funcs_ = false, 
-        #  exit_funcs_ = std::deque with 0 elements, 
-        #  scheduler_base_ = 0x7cf5b8, 
+        #  },
+        #  component_id_ = 8198320,
+        #  description_ = thread_description {{ [desc] {0x7ffff4aa0cb5 "call_startup_functions_action"} }},
+        #  lco_description_ = thread_description {{ [desc] {0x7ffff4918a9d "<unknown>"} }},
+        #  parent_locality_id_ = 0,
+        #  parent_thread_id_ = 0x7f3090,
+        #  parent_thread_phase_ = 1,
+        #  marked_state_ = hpx::threads::unknown,
+        #  priority_ = hpx::threads::thread_priority_normal,
+        #  requested_interrupt_ = false,
+        #  enabled_interrupt_ = true,
+        #  ran_exit_funcs_ = false,
+        #  exit_funcs_ = std::deque with 0 elements,
+        #  scheduler_base_ = 0x7cf5b8,
         #  count_ = {
         #    value_ = {
         #      <boost::atomics::detail::base_atomic<long, int>> = {
         #        m_storage = 1
         #      }, <No data fields>
         #    }
-        #  }, 
-        #  stacksize_ = 131072, 
+        #  },
+        #  stacksize_ = 131072,
         #  coroutine_ = {
         #    m_pimpl = (boost::intrusive_ptr<hpx::threads::coroutines::detail::coroutine_impl>) 0x7fffee728180
-        #  }, 
+        #  },
         #  pool_ = 0x7e9a60
         #}
 
@@ -99,14 +99,16 @@ class HPXThread():
         combined_state = self.thread_data['current_state_']['m_storage']
 
         current_state_type = gdb.lookup_type('hpx::threads::thread_state_enum')
-        self.state = combined_state >> 56 & 0xff
+        self.state = combined_state
         self.state = self.state.cast(current_state_type)
+        self.state = self.state >> 56 & 0xff
 
         current_state_ex_type = gdb.lookup_type(
             'hpx::threads::thread_state_ex_enum'
         )
-        self.state_ex = combined_state >> 48 & 0xff
+        self.state_ex = combined_state
         self.state_ex = self.state_ex.cast(current_state_ex_type)
+        self.state_ex = self.state_ex >> 48 & 0xff
 
         self.size_t = gdb.lookup_type("std::size_t")
         stack = self.m_sp.reinterpret_cast(self.size_t)
