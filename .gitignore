@@ -18,6 +18,15 @@ __pycache__/
 # C lib
 *.so
 
+# Visual Studio
+*.sln
+*.suo
+*.pyproj
+.vs/
+
+# Vim
+*.swp
+
 # Distribution / packaging
 .Python
 env/

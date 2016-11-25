@@ -26,8 +26,8 @@ end
 
 ### Prerequisites
 * Software:
-  * Python 2.7
-  * GDB 7.1
+  * Python 2.7 (Previous versions not tested. Might work fine)
+  * GDB 7.1 (Previous versions not tested. Might work fine)
 * Python Modules
   * pexpect
 
@@ -45,13 +45,10 @@ and add to it to meet your needs.
   `switch <locality id>`
 
 ## Commands
-* local raw
-* local <pid>[ <pid>...]
-* local ls
-* local ls <regex_pattern>
-* remote <machine_name>
-* remote <machine_name> <jobid>
-* remote <machine_name> attach <app_name> <node:pid>[ <node:pid>...]
+* `local <pid>[ <pid>...]`
+* `remote <machine_name>`
+* `remote <machine_name> <jobid>`
+* `remote <machine_name> attach <node:pid>[ <node:pid>...]`
 
 ### Pending merges:
 * GDB/MI

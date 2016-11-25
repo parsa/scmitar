@@ -13,7 +13,7 @@
 module scimitar.session.offline_session
 
 This module contains code used by the main Scimitar procedure. The code in
-this module is executed in offline mode i.e. when Scimitar no debuggin
+this module is executed in offline mode i.e. when Scimitar no debugging
 session is active and while being idle.
 '''
 

@@ -15,8 +15,10 @@ from sys import stdout
 import time
 import thread
 import threading
-from util import config, vt100, print_out, print_ahead, print_error, raw_input_async, repr_str
-import session
+from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str
+import config
+import sessions
+import errors
 
 # Constants
 BANNER = '''
@@ -27,7 +29,7 @@ BANNER = '''
    ___) | (__| | | | | | | | || (_| | |                       .7?IDD8Z+.        
   |____/ \___|_|_| |_| |_|_|\__\__,_|_|   (alpha)            .$?I+=$=.          
                                                           .?77$=+..?.           
-            0.3.193 build 3109                          .III77777,.:I.          
+            0.3.198 build 3304                          .III77777,.:I.          
                                                      .~?????I,?.    .~.         
                                                   ..?++++?=?+.                  
                                                 .?+++++I 7:                     
@@ -64,8 +66,8 @@ def noise():
 
 
 command_handler_switcher = {
-    session.modes.offline: session.offline.process,
-    session.modes.debugging: session.debugging.process,
+    sessions.modes.offline: sessions.offline.process,
+    sessions.modes.debugging: sessions.debug.process,
 }
 
 
@@ -76,13 +78,13 @@ def main():
     print_out(BANNER)
 
     # Initial session mode
-    state = session.modes.offline
+    state = sessions.modes.offline
 
     # Async output printing
     thread.start_new_thread(noise, ())
 
     # Main loop
-    while state != session.modes.quit:
+    while state != sessions.modes.quit:
         vt100.unlock_keyboard()
         # FIXME: raw_input_async still is a blocking call. Have found no way to
         # avoid it. Reason: readline initiates a system call that I have no
@@ -96,6 +98,8 @@ def main():
         # An empty string is a valid empty
         # If the input was a control signal split might just remove it
         packed_input = user_input if user_input else key_seq
+        if not packed_input:
+            continue
         cmd, args = packed_input[0], packed_input[1:]
         # Run the appropriate mode's processing function
         cmd_processor_fn = command_handler_switcher.get(state)
@@ -104,29 +108,29 @@ def main():
             state, update_msg = cmd_processor_fn(cmd, args)
             if update_msg:
                 print_out(update_msg)
-        except session.UnknownCommandError as e:
+        except errors.UnknownCommandError as e:
             print_error(
                 'Unknown command: {u1}{cmd}{u0}', cmd = repr_str(e.expression)
             )
-        except session.BadArgsError as e:
+        except errors.BadArgsError as e:
             print_error(
                 'Command "{u1}{cmd}{u0}" cannot be initiated with the arguments provided.\n{msg}',
                 cmd = e.expression,
                 msg = e.message
             )
-        except session.BadConfigError as e:
+        except errors.BadConfigError as e:
             print_error(
                 'The command encountered errors with the provided arguments.\n{u1}{cmd}{u0}: {msg}.',
                 cmd = e.expression,
                 msg = e.message
             )
-        except session.CommandFailedError as e:
+        except errors.CommandFailedError as e:
             print_error(
                 'The command encountered an error and did not run properly.\n{u1}{cmd}{u0}: {msg}.',
                 cmd = e.expression,
                 msg = e.message
             )
-        except session.CommandImplementationIncompleteError:
+        except errors.CommandImplementationIncompleteError:
             print_error(
                 'The implementation of command "{u1}{cmd}{u0}" is not complete yet.',
                 cmd = cmd

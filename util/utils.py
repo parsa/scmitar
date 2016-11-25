@@ -9,7 +9,7 @@
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
-from . import config
+import config
 from . import signals
 from . import vt100 as v
 from sys import stdout, exit
@@ -173,7 +173,9 @@ def raw_input_async(prompt = '', timeout = 5):
                 if raw_input_async.kill_sigs >= config.settings['signals'][
                     'sigkill'
                 ] - 1:
-                    print_out('\rGot {u1}<C-c>{u0}. ABAAAAAAANDON SHIP!')
+                    print_out(
+                        '\rGot too many {u1}<C-c>{u0}s. ABAAAAAAANDON SHIP!'
+                        )
                     exit(0)
             else:
                 raw_input_async.kill_sigs = 0

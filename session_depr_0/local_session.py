@@ -18,16 +18,7 @@ import pexpect as sp
 #############################
 # mode: local
 #############################
-def raw(args):
-    # Launch GDB
-    raise CommandImplementationIncompleteError
-
-
 def attach(args):
-    raise CommandImplementationIncompleteError
-
-
-def list(args):
     raise CommandImplementationIncompleteError
 
 
@@ -36,9 +27,7 @@ def quit(args):
 
 
 commands = {
-    'raw': raw,
     'attach': attach,
-    'list': list,
     'quit': quit,
 }
 
@@ -74,14 +63,6 @@ class LocalSession():
 
     @classmethod
     def attach_to_pids(cls, pids):
-        raise CommandImplementationIncompleteError
-
-    @classmethod
-    def raw(cls):
-        raise CommandImplementationIncompleteError
-
-    @classmethod
-    def list(cls):
         raise CommandImplementationIncompleteError
 
     def query(self, msg):

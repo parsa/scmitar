@@ -16,12 +16,11 @@ from util import config, print_ahead
 # mode: offline
 #######################
 # Valid commands:
-## $ local
 ## $ local <pid>[ <pid>...]
 ## $ remote <machine_name>
 ## $ remote <machine_name> <jobid>
-## $ remote <machine_name> attach <app_name> <node:pid>[ <node:pid>...]
-## quit
+## $ remote <machine_name> attach <node:pid>[ <node:pid>...]
+## $ quit
 
 # Are we doing whatever we're doing locally or over SSH
 # helps us to choose between pxssh/pexpect
