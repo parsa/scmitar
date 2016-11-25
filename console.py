@@ -115,7 +115,7 @@ class Terminal(object):
     def query(self, cmd):
         self.con.sendline(cmd)
         try:
-            self.con.expect(self.prompt_pattern)
+            self.con.expect(self.prompt_patterns[0])
         except pexpect.TIMEOUT:
             # Maybe just the app has crashed and the shell session's fine.
             if len(self.prompt_patterns) > 1:

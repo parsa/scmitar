@@ -40,9 +40,8 @@ def quit(args):
 def gdb_exec(cmd):
     cs = console.get_current_session()
     gdb_response = cs.query(' '.join(cmd))
-    r, c, t, l = mi_interface.parse(gdb_response)
-    msg = c.decode('string_escape') if c else ''
-    return modes.debugging, msg
+    indrec, cout, tout, lout = mi_interface.parse(gdb_response)
+    return modes.debugging, cout
 
 
 def debug(args):

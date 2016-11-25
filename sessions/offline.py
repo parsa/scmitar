@@ -14,7 +14,8 @@ import modes
 import errors
 import pexpect
 import console
-from util import config, print_ahead, configuration
+import mi_interface
+from util import config, print_ahead, print_out, configuration
 from terminals import LocalTerminal, RemoteTerminal
 #######################
 # mode: offline
@@ -67,7 +68,7 @@ def attach(args):
                     host_path = '.'.join(console.list_hops())
                     if host:
                         host_path += '.' + host
-                    dead_pids.append('{host}:{pid}'.format(host=host_path, pid=pid))
+                    dead_pids.append('{host}:{pid}'.format(host=host_path or 'localhost', pid=pid))
 
     # Stop if all processes are alive
     if len(dead_pids) != 0:
@@ -87,12 +88,16 @@ def attach(args):
             #cmd = ['ssh', host].extend(gdb_cmd)
             cmd_str = ' '.join(gdb_cmd)
 
+            print_out('Host "{host}", Process "{pid}"...', host=host or 'localhost', pid=pid)
+
             term = console.Terminal(host)
             term.connect()
 
             try:
                 term.set_prompt('\(gdb\)\ \r\n')
-                print(term.query(cmd_str))
+                gdb_response = term.query(cmd_str)
+                r, c, t, l = mi_interface.parse(gdb_response)
+                print(''.join([c, t, l]))
             except pexpect.ExceptionPexpect as e:
                 raise errors.CommandFailedError('attach', 'attach', e)
 
