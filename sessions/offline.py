@@ -13,14 +13,14 @@ import re
 import modes
 import errors
 import pexpect
+import console
 from util import config, print_ahead, configuration
 from terminals import LocalTerminal, RemoteTerminal
 #######################
 # mode: offline
 #######################
 
-global base_machine
-base_machine = 'localhost'
+base_machine = None
 
 def job(args):
     try:
@@ -49,7 +49,7 @@ def attach(args):
     # Group by host
     pid_list = {}
     for app_instance in re.finditer('((?:(\w+):)?(\d+))', args_string):
-        host = app_instance.group(2) or base_machine
+        host = app_instance.group(2) # or base_machine
         pid = int(app_instance.group(3))
 
         if pid_list.has_key(host):
@@ -61,11 +61,10 @@ def attach(args):
     dead_pids = []
     for host in pid_list.iterkeys():
         # Establish a connection per each process
-        term = LocalTerminal() if host == base_machine else RemoteTerminal(host)
-
-        for pid in pid_list[host]:
-            if not term.is_pid_alive(pid):
-                dead_pids.append('{host}:{pid}'.format(host=host, pid=pid))
+        with console.Terminal(host) as term:
+            for pid in pid_list[host]:
+                if not term.is_pid_alive(pid):
+                    dead_pids.append('{host}:{pid}'.format(host=host, pid=pid))
 
     # Stop if all processes are alive
     if len(dead_pids) != 0:
@@ -75,13 +74,9 @@ def attach(args):
 
     for host in pid_list.iterkeys():
         for pid in pid_list[host]:
-            if host == base_machine and base_machine == 'localhost':
-                term = LocalTerminal()
-            else:
-                term = RemoteTerminal(host)
 
             # Start all GDB instances
-            gdb_config = configuration.settings['gdb']
+            gdb_config = configuration.get_gdb_config()
             gdb_cmd = gdb_config['cmd']
 
             # Build the command line and launch GDB
@@ -89,11 +84,12 @@ def attach(args):
             #cmd = ['ssh', host].extend(gdb_cmd)
             cmd_str = ' '.join(gdb_cmd)
 
+            term = console.Terminal(host)
+            term.connect()
+
             try:
-                term.terminal.PROMPT = gdb_config['mi_prompt_pattern']
-                term.terminal.sendline(cmd_str)
-                term.terminal.expect('\(gdb\)\ \r\n')
-                print(term.terminal.before)
+                term.set_prompt('\(gdb\)\ \r\n')
+                print(term.query(cmd_str))
             except pexpect.ExceptionPexpect as e:
                 raise CommandFailedError('examine_job', e.expectation)
 
@@ -108,16 +104,18 @@ def quit(args):
 
 
 def add_hop(args):
-    raise errors.CommandImplementationIncompleteError
+    for host in args:
+        console.add_hop(host)
 
 
 def pop_hop(args):
-    raise errors.CommandImplementationIncompleteError
+    console.pop_hop();
 
 
 def list_hops(args):
-    raise errors.CommandImplementationIncompleteError
-
+    all_sessions = console.list_sessions()
+    hops_str = '\r\n    '.join(all_sessions()) if all_sessions else '\r\n    None'
+    return modes.offline, 'Current hops:' + hops_str
 
 
 def debug(args):
@@ -129,7 +127,7 @@ def debug(args):
 commands = {
     'hop': add_hop,
     'pop': pop_hop,
-    'lshop': list_hops,
+    'ls': list_hops,
     'job': job,
     'attach': attach,
     'debug': debug, # HACK: For debugging only

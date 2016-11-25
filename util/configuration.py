@@ -36,4 +36,8 @@ def get_host_config(name):
     # Get configuration
     return HostConfig(**remotes[name])
 
+
+def get_gdb_config():
+    return settings['gdb']
+
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:
