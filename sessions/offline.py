@@ -41,7 +41,7 @@ def job(args):
 
 
 def attach(args):
-    args_string = ''.join(args)
+    args_string = ' '.join(args)
     # Verify command syntax
     if len(args) < 1 or not re.match('(?:(?:\w+:)?\d+|\s)+', args_string):
         raise errors.BadArgsError('attach', 'attach [<host>:]<pid>[ [<host>:]<pid> [...]]')
@@ -64,12 +64,15 @@ def attach(args):
         with console.Terminal(host) as term:
             for pid in pid_list[host]:
                 if not term.is_pid_alive(pid):
-                    dead_pids.append('{host}:{pid}'.format(host=host, pid=pid))
+                    host_path = '.'.join(console.list_hops())
+                    if host:
+                        host_path += '.' + host
+                    dead_pids.append('{host}:{pid}'.format(host=host_path, pid=pid))
 
     # Stop if all processes are alive
     if len(dead_pids) != 0:
-        raise errors.BadArgsError(
-            'attach', 'Invalid PIDs: {0}'.format(
+        raise errors.CommandFailedError(
+            'attach', 'Invalid PIDs provided: {0}'.format(
             ' ,'.join(dead_pids)))
 
     for host in pid_list.iterkeys():
@@ -91,7 +94,7 @@ def attach(args):
                 term.set_prompt('\(gdb\)\ \r\n')
                 print(term.query(cmd_str))
             except pexpect.ExceptionPexpect as e:
-                raise CommandFailedError('examine_job', e.expectation)
+                raise errors.CommandFailedError('attach', 'attach', e)
 
 
     raise errors.CommandImplementationIncompleteError
@@ -100,34 +103,50 @@ def attach(args):
 
 
 def quit(args):
-    return (modes.quit, None)
+    return modes.quit, None
 
 
 def add_hop(args):
+    # Verify command syntax
+    if len(args) < 1:
+        raise errors.BadArgsError('hop', 'hop <host>[ [<host> [...]]')
+
     for host in args:
         console.add_hop(host)
 
+    return modes.offline, None
+
 
 def pop_hop(args):
-    console.pop_hop();
+    # Verify command syntax
+    if len(args) > 0:
+        raise errors.BadArgsError('pop', 'No arguments.\r\nSyntax:\r\n\tpop')
+
+    try:
+        console.pop_hop();
+    except errors.CommandFailedError as e:
+        raise e
+
+    return modes.offline, None
 
 
 def list_hops(args):
-    all_sessions = console.list_sessions()
-    hops_str = '\r\n    '.join(all_sessions()) if all_sessions else '\r\n    None'
+    items = console.list_hops()
+    hops_str = '\r\n    '.join(items) if items else '\r\n    None'
     return modes.offline, 'Current hops:' + hops_str
 
 
 def debug(args):
     import pdb
     pdb.set_trace()
-    return (modes.offline, None)
+
+    return modes.offline, None
 
 
 commands = {
-    'hop': add_hop,
+    'chain': add_hop,
     'pop': pop_hop,
-    'ls': list_hops,
+    'hops': list_hops,
     'job': job,
     'attach': attach,
     'debug': debug, # HACK: For debugging only

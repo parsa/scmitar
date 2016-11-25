@@ -28,10 +28,15 @@ def end(args):
 
 
 def quit(args):
+    console.close_all_sessions()
+
     return (modes.quit, None)
 
 
-def gdb_command(args):
+def gdb_exec(args):
+    cs = console.get_current_session()
+    cmd = ' '.join(args)
+    cs.query(cmd)
     raise errors.CommandImplementationIncompleteError
 
 
@@ -52,6 +57,8 @@ commands = {
 def process(cmd, args):
     if cmd in commands:
         return commands[cmd](args)
+    else:
+        return gdb_exec(args)
     #raise errors.UnknownCommandError(cmd)
     raise errors.CommandImplementationIncompleteError
 

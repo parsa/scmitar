@@ -21,21 +21,32 @@ global current_session_id, newest_session_id
 current_session_id, newest_session_id = -1, -1
 
 
+def list_hops():
+    return hops
+
+
 def list_sessions():
     return all_sessions
 
 
 def add_hop(host):
-    if len(all_sessions) != 0:
+    if len(all_sessions) > 0:
         raise errors.CommandFailedError('Cannot add a hop while connections alive.')
     hops.append(host)
 
+
 def pop_hop():
-    if len(all_sessions) != 0:
-        raise errors.CommandFailedError('Cannot add a hop while connections alive.')
+    if len(all_sessions) > 0:
+        raise errors.CommandFailedError('pop', 'Cannot add a hop while connections alive.')
     if len(hops) == 0:
-        raise errors.CommandFailedError('No hops currently exist, nothing can be removed.')
+        raise errors.CommandFailedError('pop', 'No hops currently exist. Nothing can be removed')
     return hops.pop()
+
+
+def close_all_sessions():
+    if len(all_sessions) > 0:
+        for s in all_sessions:
+            s.close()
 
 
 def get_current_session():
@@ -76,16 +87,20 @@ class Terminal(object):
         newest_session_id = len(all_sessions) - 1
 
         return self
-    
+
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
+
     def close(self):
-        if self.con.isalive():
-            try:
+        try:
+            cntr = 5
+            while self.con.isalive() and cntr > 0:
                 self.query('quit')
-            finally:
-                self.con.close()
+                cntr -= 1
+        finally:
+            self.con.close()
 
         all_sessions.remove(self)
 
@@ -107,6 +122,6 @@ class Terminal(object):
         :returns: bool
 
         """
-        if re.match('.*aye\r*\n*', self.query('ps -p {pid} >/dev/null 2>&1 && echo aye || echo nay'.format(pid=process_id))):
+        if re.match('^.*aye[\r\n]*$', self.query('ps -p {pid} >/dev/null 2>&1 && echo aye || echo nay'.format(pid=process_id)), re.DOTALL):
             return True
         return False
