@@ -66,8 +66,8 @@ def noise():
 
 
 command_handler_switcher = {
-    sessions.modes.offline: sessions.offline.process,
-    sessions.modes.debugging: sessions.debug.process,
+    sessions.modes.offline: sessions.offline_session.process,
+    sessions.modes.debugging: sessions.debug_session.process,
 }
 
 

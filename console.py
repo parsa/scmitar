@@ -17,8 +17,19 @@ import pexpect
 hops = []
 all_sessions = []
 
-global current_session_id, newest_session_id
-current_session_id, newest_session_id = -1, -1
+newest_session_id = -1
+
+
+def get_oldest_session():
+    if all_sessions:
+        return all_sessions[0]
+    return None
+
+
+def get_newest_session():
+    if all_sessions and not newest_session_id < 0:
+        return all_sessions[newest_session_id]
+    return None
 
 
 def list_hops():
@@ -49,23 +60,20 @@ def close_all_sessions():
             s.close()
 
 
-def get_current_session():
-    if current_session_id < 0:
-        return None
-    return all_sessions[current_session_id]
-
-
 class Terminal(object):
     ps1_export_cmd = r"export PS1='SCIMITAR_PS\n$ '"
+    ps1_re = r'SCIMITAR_PS\s+\$ '
 
     def __init__(self, node=None):
         self.node = node
         self.con = None
-        self.prompt_patterns = [ r'SCIMITAR_PS\s+\$ ' ]
 
+        self.host = 'localhost'
+        self.meta = None
+        self.tag = None
 
-    def original_prompt(self):
-        return self.prompt_patterns[len(self.prompt_patterns) - 1]
+        self.exit_re = None
+        self.prompt_re = None
 
 
     def __enter__(self):
@@ -79,12 +87,14 @@ class Terminal(object):
 
         for host in hops:
             self.con.sendline('ssh -tt {host}'.format(host=host))
+            self.host = host
 
         if self.node:
             self.con.sendline('ssh -tt {host}'.format(host=self.node))
+            self.host = self.node
 
         self.con.sendline(self.ps1_export_cmd)
-        self.con.expect(self.prompt_patterns[0])
+        self.con.expect(self.ps1_re)
 
         all_sessions.append(self)
         newest_session_id = len(all_sessions) - 1
@@ -108,29 +118,29 @@ class Terminal(object):
         all_sessions.remove(self)
 
 
-    def set_prompt(self, prompt):
-        self.prompt_patterns.insert(0, prompt)
-
-
     def query(self, cmd):
         self.con.sendline(cmd)
         try:
-            self.con.expect(self.prompt_patterns[0])
-        except pexpect.TIMEOUT:
-            # Maybe just the app has crashed and the shell session's fine.
-            if len(self.prompt_patterns) > 1:
-                try:
-                    self.con.expect(self.original_prompt())
-                # Connection's probably dead, close the socket
-                except pexpect.TIMEOUT as e:
-                    self.con.close()
-                    raise errors.ConsoleSessionError
-                # App crashed, shell session's okay
-                raise errors.UnexpectedResponseError
-            # Connection's probably dead, close the socket
+            p_re = [ self.ps1_re ]
+            if self.exit_re:
+                p_re.insert(0, self.exit_re)
+            if self.prompt_re:
+                p_re.insert(0, self.prompt_re)
+
+            pattern_index = self.con.expect(p_re)
+            if pattern_index == 0:
+                return self.con.before
+            elif pattern_index == 1:
+                self.close()
+                return '^exit'
+            elif pattern_index == 2:
+                self.con.close()
+                return '^kill'
+        except (pexpect.TIMEOUT, pexpect.EOF):
+            ## Connection's probably dead, close the socket
+            self.close()
             raise errors.ConsoleSessionError
-            self.con.close()
-        return self.con.before
+        raise errors.UnexpectedResponseError
 
 
     def is_pid_alive(self, process_id):

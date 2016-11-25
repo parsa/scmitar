@@ -15,8 +15,8 @@ import errors
 import pexpect
 import console
 import mi_interface
+import debug_session
 from util import config, print_ahead, print_out, configuration
-from terminals import LocalTerminal, RemoteTerminal
 #######################
 # mode: offline
 #######################
@@ -76,8 +76,11 @@ def attach(args):
             'attach', 'Invalid PIDs provided: {0}'.format(
             ' ,'.join(dead_pids)))
 
+    tag_counter = 0
     for host in pid_list.iterkeys():
         for pid in pid_list[host]:
+
+            tag_counter += 1
 
             # Start all GDB instances
             gdb_config = configuration.get_gdb_config()
@@ -91,17 +94,21 @@ def attach(args):
             print_out('Host "{host}", Process "{pid}"...', host=host or 'localhost', pid=pid)
 
             term = console.Terminal(host)
+            term.meta = pid
+            term.tag = str(tag_counter)
             term.connect()
 
             try:
-                term.set_prompt('\(gdb\)\ \r\n')
+                term.exit_re = r'&"quit\n"|\^exit'
+                term.prompt_re = r'\(gdb\)\ \r\n'
                 gdb_response = term.query(cmd_str)
                 r, c, t, l = mi_interface.parse(gdb_response)
                 print(''.join([c, t, l]))
             except pexpect.ExceptionPexpect as e:
                 raise errors.CommandFailedError('attach', 'attach', e)
 
-    console.current_session_id = console.newest_session_id
+    import pdb; pdb.set_trace()
+    debug_session.init_session_dict(console.get_oldest_session().tag)
 
     return modes.debugging, None
 
