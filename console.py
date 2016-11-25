@@ -57,12 +57,15 @@ def get_current_session():
 
 class Terminal(object):
     ps1_export_cmd = r"export PS1='SCIMITAR_PS\n$ '"
-    ps1_pattern = 'SCIMITAR_PS\r*\n\$\ '
 
     def __init__(self, node=None):
         self.node = node
         self.con = None
-        self.prompt_pattern = self.ps1_pattern
+        self.prompt_patterns = [ r'SCIMITAR_PS\s+\$ ' ]
+
+
+    def original_prompt(self):
+        return self.prompt_patterns[len(self.prompt_patterns) - 1]
 
 
     def __enter__(self):
@@ -81,7 +84,7 @@ class Terminal(object):
             self.con.sendline('ssh -tt {host}'.format(host=self.node))
 
         self.con.sendline(self.ps1_export_cmd)
-        self.con.expect(self.ps1_pattern)
+        self.con.expect(self.prompt_patterns[0])
 
         all_sessions.append(self)
         newest_session_id = len(all_sessions) - 1
@@ -106,12 +109,27 @@ class Terminal(object):
 
 
     def set_prompt(self, prompt):
-        self.prompt_pattern = prompt
+        self.prompt_patterns.insert(0, prompt)
 
 
     def query(self, cmd):
         self.con.sendline(cmd)
-        self.con.expect(self.prompt_pattern)
+        try:
+            self.con.expect(self.prompt_pattern)
+        except pexpect.TIMEOUT:
+            # Maybe just the app has crashed and the shell session's fine.
+            if len(self.prompt_patterns) > 1:
+                try:
+                    self.con.expect(self.original_prompt())
+                # Connection's probably dead, close the socket
+                except pexpect.TIMEOUT as e:
+                    self.con.close()
+                    raise errors.ConsoleSessionError
+                # App crashed, shell session's okay
+                raise errors.UnexpectedResponseError
+            # Connection's probably dead, close the socket
+            raise errors.ConsoleSessionError
+            self.con.close()
         return self.con.before
 
 

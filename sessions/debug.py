@@ -13,6 +13,7 @@
 import errors
 import modes
 import console
+import mi_interface
 
 
 def ls(args):
@@ -29,14 +30,18 @@ def end(args):
 
 
 def quit(args):
+    for s in console.list_sessions():
+        s.query('-gdb-exit')
     console.close_all_sessions()
 
-    return (modes.quit, None)
+    return modes.quit, None
 
 
 def gdb_exec(cmd):
     cs = console.get_current_session()
-    msg = cs.query(' '.join(cmd))
+    gdb_response = cs.query(' '.join(cmd))
+    r, c, t, l = mi_interface.parse(gdb_response)
+    msg = c.decode('string_escape') if c else ''
     return modes.debugging, msg
 
 
