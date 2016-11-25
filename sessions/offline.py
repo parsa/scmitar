@@ -96,8 +96,7 @@ def attach(args):
             except pexpect.ExceptionPexpect as e:
                 raise errors.CommandFailedError('attach', 'attach', e)
 
-
-    raise errors.CommandImplementationIncompleteError
+    console.current_session_id = console.newest_session_id
 
     return modes.debugging, None
 

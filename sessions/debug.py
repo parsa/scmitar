@@ -12,6 +12,7 @@
 
 import errors
 import modes
+import console
 
 
 def ls(args):
@@ -33,17 +34,16 @@ def quit(args):
     return (modes.quit, None)
 
 
-def gdb_exec(args):
+def gdb_exec(cmd):
     cs = console.get_current_session()
-    cmd = ' '.join(args)
-    cs.query(cmd)
-    raise errors.CommandImplementationIncompleteError
+    msg = cs.query(' '.join(cmd))
+    return modes.debugging, msg
 
 
 def debug(args):
     import pdb
     pdb.set_trace()
-    return (modes.offline, None)
+    return modes.quit, None
 
 
 commands = {
@@ -58,7 +58,7 @@ def process(cmd, args):
     if cmd in commands:
         return commands[cmd](args)
     else:
-        return gdb_exec(args)
+        return gdb_exec([cmd] + (args or []))
     #raise errors.UnknownCommandError(cmd)
     raise errors.CommandImplementationIncompleteError
 
