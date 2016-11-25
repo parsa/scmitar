@@ -21,7 +21,21 @@ def ls(args):
 
 
 def switch(args):
-    raise errors.CommandImplementationIncompleteError
+    # Verify command syntax
+    if len(args) != 1:
+        raise errors.BadArgsError('switch', 'switch <session_id>')
+
+    try:
+        id = int(args[0])
+    except ValueError:
+        raise errors.BadArgsError('switch', 'switch <session_id>')
+
+    session_list = console.list_sessions()
+    if id >= len(session_list):
+        raise errors.BadArgsError('switch', 'No such session exists.')
+
+    console.current_session_id = id
+    return modes.debugging, 'Switched to session #' + str(id)
 
 
 def end(args):
