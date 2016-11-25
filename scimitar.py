@@ -88,7 +88,7 @@ def main():
     thread.start_new_thread(noise, ())
 
     prompts_list = config.settings['ui']['prompts']
-    riap = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
+    get_prompt() = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
 
     # Main loop
     while state != modes.quit:
@@ -96,7 +96,7 @@ def main():
         # FIXME: raw_input_async still is a blocking call. Have found no way to
         # avoid it. Reason: readline initiates a system call that I have no
         # clue to get out of.
-        user_input, key_seq = raw_input_async(riap())
+        user_input, key_seq = raw_input_async(get_prompt())
         # HACK: Temporarily disabled for debugging
         #vt100.lock_keyboard()
         ## HACK: Display the user's input
