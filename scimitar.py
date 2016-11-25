@@ -15,9 +15,10 @@ from sys import stdout
 import time
 import thread
 import threading
+
 from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, load_history, save_history, cleanup_terminal
+from sessions import modes, offline_session, debug_session
 import config
-import sessions
 import errors
 
 # Constants
@@ -66,8 +67,8 @@ def noise():
 
 
 command_handler_switcher = {
-    sessions.modes.offline: sessions.offline_session.process,
-    sessions.modes.debugging: sessions.debug_session.process,
+    modes.offline: offline_session.process,
+    modes.debugging: debug_session.process,
 }
 
 
@@ -78,7 +79,7 @@ def main():
     print_out(BANNER)
 
     # Initial session mode
-    state = sessions.modes.offline
+    state = modes.offline
 
     # Init readline
     load_history()
@@ -86,13 +87,16 @@ def main():
     # Async output printing
     thread.start_new_thread(noise, ())
 
+    prompts_list = config.settings['ui']['prompts']
+    riap = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
+
     # Main loop
-    while state != sessions.modes.quit:
+    while state != modes.quit:
         vt100.unlock_keyboard()
         # FIXME: raw_input_async still is a blocking call. Have found no way to
         # avoid it. Reason: readline initiates a system call that I have no
         # clue to get out of.
-        user_input, key_seq = raw_input_async(config.settings['ui']['prompt'])
+        user_input, key_seq = raw_input_async(riap())
         # HACK: Temporarily disabled for debugging
         #vt100.lock_keyboard()
         ## HACK: Display the user's input
@@ -123,13 +127,13 @@ def main():
             )
         except errors.BadConfigError as e:
             print_error(
-                'The command encountered errors with the provided arguments.\n{u1}{cmd}{u0}: {msg}.',
+                'The command encountered errors with the provided arguments.\n{u1}{cmd}{u0}: {msg}',
                 cmd = e.expression,
                 msg = e.message
             )
         except errors.CommandFailedError as e:
             print_error(
-                'The command encountered an error and did not run properly.\n{u1}{cmd}{u0}: {msg}.',
+                'The command encountered an error and did not run properly.\n{u1}{cmd}{u0}: {msg}',
                 cmd = e.expression,
                 msg = e.message
             )

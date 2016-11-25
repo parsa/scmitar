@@ -107,10 +107,7 @@ def attach(args):
             except pexpect.ExceptionPexpect as e:
                 raise errors.CommandFailedError('attach', 'attach', e)
 
-    import pdb; pdb.set_trace()
-    debug_session.init_session_dict(console.get_oldest_session().tag)
-
-    return modes.debugging, None
+    return debug_session.init_session_dict(console.get_oldest_session().tag)
 
 
 def quit(args):

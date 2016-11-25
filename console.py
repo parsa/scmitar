@@ -64,6 +64,7 @@ class Terminal(object):
     ps1_export_cmd = r"export PS1='SCIMITAR_PS\n$ '"
     ps1_re = r'SCIMITAR_PS\s+\$ '
 
+
     def __init__(self, node=None):
         self.node = node
         self.con = None
@@ -119,6 +120,8 @@ class Terminal(object):
 
 
     def query(self, cmd):
+        if not self.con.isalive():
+            raise errors.DeadConsoleError
         self.con.sendline(cmd)
         try:
             p_re = [ self.ps1_re ]
@@ -153,3 +156,11 @@ class Terminal(object):
         if re.match('^.*aye[\r\n]*$', self.query('ps -p {pid} >/dev/null 2>&1 && echo aye || echo nay'.format(pid=process_id)), re.DOTALL):
             return True
         return False
+
+
+    def is_alive(self):
+        return self.con.isalive()
+
+
+    def __repr__(self):
+        return '<Terminal %s @%s:%d>' % (self.tag, self.host, self.meta,)

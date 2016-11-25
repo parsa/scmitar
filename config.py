@@ -15,7 +15,11 @@ import getpass
 settings = {
     'ui':
     {
-        'prompt': '$ ',
+        'prompts':
+            [
+                '# ',
+                '$ ',
+            ],
     },
     'signals':
     {

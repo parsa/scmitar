@@ -15,6 +15,18 @@ _result_pattern = re.compile(r'\^(?:(done)(?:,([^\r\n]+))?|(running)|(connected)
 _stream_pattern = re.compile(r'([~@&])"((?:\\.|[^\"\\])+)"')
 #_async_pattern = re.compile(r'')
 
+def _safe_unescape(msg):
+    if type(msg) is str:
+        return msg.decode('string_escape')
+    return ''
+
+
+def _safe_join_unescape(msg_col):
+    if msg_col:
+        return _safe_unescape(''.join(msg_col))
+    return ''
+
+
 def parse(output_records):
     result_records = re.findall(_result_pattern, output_records)
     stream_records = re.findall(_stream_pattern, output_records)
@@ -26,10 +38,10 @@ def parse(output_records):
         result_indicator_regex = result_record[0] or result_record[2] or result_record[3] or result_record[4] or result_record[7]
 
         result_indicator = {
-            'done': (indicator_done, result_record[1]),
+            'done': (indicator_done, _safe_unescape(result_record[1])),
             'running': (indicator_running, ),
             'connected': (indicator_connected, ),
-            'error': (indicator_error, result_record[5], result_record[6]),
+            'error': (indicator_error, _safe_unescape(result_record[5]), _safe_unescape(result_record[6])),
             'exit': (indicator_exit, ),
         }[result_indicator_regex]
 
@@ -41,9 +53,9 @@ def parse(output_records):
             '&': log_list,
         }[stream[0]].append(stream[1])
 
-    console_out = ''.join(console_list).decode('string_escape') if console_list else ''
-    target_out = ''.join(target_list).decode('string_escape') if target_list else ''
-    log_out = ''.join(log_list).decode('string_escape') if log_list else ''
+    console_out = _safe_join_unescape(console_list)
+    target_out = _safe_join_unescape(target_list)
+    log_out = _safe_join_unescape(log_list)
 
     return result_indicator, console_out, target_out, log_out
 

@@ -26,17 +26,27 @@ def init_session_dict(current_tag):
 
     if not session_dict:
         session_dict = {}
-        for s in console.list_sessions():
-            session_dict[s.tag] = s
+        for s_i in console.list_sessions():
+            session_dict[s_i.tag] = s_i
 
     current_session_tag = current_tag
 
+    return modes.debugging, None
+
+
+def _ls_out():
+    ls_out = []
+    for s_i in session_dict.itervalues():
+        if s_i.tag != current_session_tag:
+            ls_head = s_i.tag
+        else:
+            ls_head = '(*) ' + s_i.tag
+        ls_out.append('%6s) %s:%d' % (ls_head, s_i.host, s_i.meta,))
+    return '\n'.join(ls_out)
+    
 
 def ls(args):
-    ls_out = []
-    for x in session_dict.itervalues():
-        ls_out.append('%6s' % ((x.tag if x.tag == current_session_tag else ('(*) ' + x.tag))) + ') ' + x.host + ':' + str(x.meta))
-    return modes.debugging, 'Sessions:\n' + '\n'.join(ls_out)
+    return modes.debugging, 'Sessions:\n' + _ls_out()
 
 
 def switch(args):
@@ -51,19 +61,20 @@ def switch(args):
 
     global current_session_tag
     current_session_tag = id
-    return modes.debugging, 'Switch to session #' + current_session_tag
+    return modes.debugging, 'Switch to session #%s\n%s' % (current_session_tag, _ls_out())
 
 
 def end(args):
-    for s in console.list_sessions():
-        s.query('-gdb-exit')
+    for s_i in console.list_sessions():
+        if s_i.is_alive():
+            s_i.query('-gdb-exit')
     session_dict = None
     return modes.offline, None
 
 
 def quit(args):
-    for s in console.list_sessions():
-        s.query('-gdb-exit')
+    for s_i in console.list_sessions():
+        s_i.query('-gdb-exit')
     console.close_all_sessions()
     session_dict = None
 
@@ -72,20 +83,20 @@ def quit(args):
 
 def gdb_exec(cmd):
     if not session_dict.has_key(current_session_tag):
-        raise errors.BadArgsError('switch', 'This session is dead.')
+        raise errors.BadArgsError('gdb_exec', 'This session is dead.')
         
     cs = session_dict[current_session_tag]
     gdb_response = cs.query(' '.join(cmd))
     if gdb_response in (r'^exit', r'^kill'):
         session_dict.pop(current_session_tag)
-        raise errors.CommandFailedError('switch', 'Session died.')
+        raise errors.CommandFailedError('gdb_exec', 'Session died.')
     indrec, cout, tout, lout = mi_interface.parse(gdb_response)
 
     if indrec[0] == mi_interface.indicator_error:
-        raise errors.CommandFailedError(indrec[1])
+        raise errors.CommandFailedError('gdb_exec', indrec[1])
     elif indrec[0] == mi_interface.indicator_exit:
         session_dict.pop(current_session_tag)
-        raise errors.CommandFailedError('switch', 'Session died.')
+        raise errors.CommandFailedError('gdb_exec', 'Session died.')
     return modes.debugging, cout
 
 

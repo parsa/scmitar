@@ -64,6 +64,12 @@ class CommandImplementationIncompleteError(ScimitarError):
     '''Raised when a command I had to remove is called.'''
     pass
 
+
+class DeadConsoleError(ScimitarError):
+    '''Raised when encountering an unexpected response during terminal sessions.'''
+    pass
+
+
 class ConsoleSessionError(ScimitarError):
     '''Raised when encountering an unexpected response during terminal sessions.'''
     pass
