@@ -25,8 +25,9 @@ def switch(args):
 
 
 def end(args):
-    raise errors.CommandImplementationIncompleteError
-    #return (modes.offline, None)
+    for s in console.list_sessions():
+        s.query('-gdb-exit')
+    return modes.offline, None
 
 
 def quit(args):
