@@ -16,7 +16,7 @@ import time
 import thread
 import threading
 
-from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, load_history, save_history, cleanup_terminal
+from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, cleanup_terminal, history
 from sessions import modes, offline_session, debug_session
 import config
 import errors
@@ -82,13 +82,13 @@ def main():
     state = modes.offline
 
     # Init readline
-    load_history()
+    history.load_history()
 
     # Async output printing
     thread.start_new_thread(noise, ())
 
     prompts_list = config.settings['ui']['prompts']
-    get_prompt() = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
+    get_prompt = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
 
     # Main loop
     while state != modes.quit:
