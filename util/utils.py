@@ -18,9 +18,11 @@ import signal
 import readline
 import re
 import select
+import os.path
 from itertools import chain
 
 FORMAT_CONSTS = {'u1': v.format._underline_on, 'u0': v.format._underline_off}
+history_file_path = os.path.join(os.path.expanduser('~'), '.scimitar_history')
 
 
 def merge_dicts(dict_a, dict_b):
@@ -53,6 +55,22 @@ def print_ahead(expr, prompt = '', *args, **kwargs):
 
     print_out(expr, *args, **kwargs)
     print_out(prompt + current_input, ending = '')
+
+
+def load_history():
+    try:
+        readline.set_history_length(10000)
+        readline.read_history_file(history_file_path)
+    except IOError:
+        pass
+
+
+def save_history():
+    try:
+        open(history_file_path, 'a').close()
+        readline.write_history_file(history_file_path)
+    except IOError:
+        pass
 
 
 repr_str_dict = {
@@ -176,6 +194,7 @@ def raw_input_async(prompt = '', timeout = 5):
                     print_out(
                         '\rGot too many {u1}<C-c>{u0}s. ABAAAAAAANDON SHIP!'
                         )
+                    cleanup_terminal()
                     exit(0)
             else:
                 raw_input_async.kill_sigs = 0
@@ -193,5 +212,11 @@ def raw_input_async(prompt = '', timeout = 5):
         #signal.signal(signal.SIGALRM, signal.SIG_IGN)
     # We should never reach here
     return None, None
+
+def cleanup_terminal():
+    # Clean up the terminal before letting go
+    save_history()
+    v.unlock_keyboard()
+    v.format.clear_all_chars_attrs()
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

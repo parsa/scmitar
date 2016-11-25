@@ -15,7 +15,7 @@ from sys import stdout
 import time
 import thread
 import threading
-from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str
+from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, load_history, save_history, cleanup_terminal
 import config
 import sessions
 import errors
@@ -79,6 +79,9 @@ def main():
 
     # Initial session mode
     state = sessions.modes.offline
+
+    # Init readline
+    load_history()
 
     # Async output printing
     thread.start_new_thread(noise, ())
@@ -145,8 +148,6 @@ if __name__ == '__main__':
     try:
         main()
     finally:
-        # Clean up the terminal before letting go
-        vt100.unlock_keyboard()
-        vt100.format.clear_all_chars_attrs()
+        cleanup_terminal()
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:
