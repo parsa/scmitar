@@ -167,6 +167,6 @@ class Terminal(object):
 
 
     def __repr__(self):
-        return '<Terminal %s @%s:%d>' % (self.tag, self.hostname, self.meta,)
+        return '<Terminal {0} @{1}:{2}>'.format(self.tag, self.hostname, self.meta)
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

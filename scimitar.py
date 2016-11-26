@@ -17,6 +17,7 @@ import thread
 import threading
 
 from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, cleanup_terminal, history
+from __ver__ import VERSION
 from sessions import modes, offline_session, debug_session
 import config
 import errors
@@ -30,7 +31,7 @@ BANNER = '''
    ___) | (__| | | | | | | | || (_| | |                       .7?IDD8Z+.        
   |____/ \___|_|_| |_| |_|_|\__\__,_|_|   (alpha)            .$?I+=$=.          
                                                           .?77$=+..?.           
-            0.3.198 build 3433                          .III77777,.:I.          
+            {get_version_result}                        .III77777,.:I.          
                                                      .~?????I,?.    .~.         
                                                   ..?++++?=?+.                  
                                                 .?+++++I 7:                     
@@ -51,7 +52,7 @@ Be licensed under Boost Software License, Version 1.0
 <http://www.boost.org/LICENSE_1_0.txt>
 'tis be free software; ye be free to change 'n redistribute it. Thar be NO
 warranty; not even for MERCHANTABILITY or FITNESS FER A PARTICULAR PURPOSE.
-'''
+'''.format(get_version_result=VERSION.rjust(20))
 
 
 # HACK: Test async output printing

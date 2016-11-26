@@ -10,17 +10,6 @@
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
 
-import re
-import errors
-import pexpect
-import console
-
-def detect_type(term):
-    term = console.Terminal()
-    if term.test_query('type squeue'):
-        return slurm_type
-    if term.test_query('type qstat'):
-        return pbs_type
-    return None
+VERSION = '0.3.203 build 3491'
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

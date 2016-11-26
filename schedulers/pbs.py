@@ -17,26 +17,22 @@ import console
 
 
 def ls_user_jobs(term):
-    term = console.Terminal()
-    cmd_out = term.query('qstat -u $USER')
+    cmd_out = term.query(r'qstat -u $USER')
     return re.findall(r'^\d([^\s]+)', cmd_out)
 
 
 def ls_job_nodes(term, job_id):
-    term = console.Terminal()
-    cmd_out = term.query('checkjob {jobid}')
-    return re.findall('\[(\w+):\d+\]', cmd_out)
+    cmd_out = term.query(r'checkjob {job_id}'.format(job_id=job_id))
+    return re.findall(r'\[(\w+):\d+\]', cmd_out)
 
 
 def which_appname(term, host):
-    term = console.Terminal()
-    cmd_out = term.query('''ssh {host} "ps -o pid:1,cmd:1 -e" | grep -o "MPISPAWN_ARGV_[0-9]='.\+'"'''.format(host=host))
-    return re.findall('MPISPAWN_ARGV_0=([\S]+)', cmd_out)[0].replace('"','').replace("'",'')
+    cmd_out = term.query(r'''ssh {host} "ps -o pid:1,cmd:1 -e" | grep -o "MPISPAWN_ARGV_[0-9]='.\+'"'''.format(host=host))
+    return re.findall(r'MPISPAWN_ARGV_0=([\S]+)', cmd_out)[0].replace(r'"', r'').replace(r"'", r'')
 
 
 def ls_pids(term, host, appname):
-    term = console.Terminal()
-    cmd_out = term.query('ssh {host} "pgrep {appname}"'.format(host=host,appname=appname))
+    cmd_out = term.query(r'ssh {host} "pgrep {appname}"'.format(host=host,appname=appname))
     return [int(pid) for pid in cmd_out.split()]
 
 

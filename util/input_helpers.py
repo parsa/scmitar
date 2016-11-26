@@ -15,6 +15,7 @@ import signal
 import readline
 import re
 import select
+import print_helpers
 
 import config
 from . import signals
@@ -97,10 +98,10 @@ def raw_input_async(prompt = '', timeout = 5):
                 if raw_input_async.kill_sigs >= config.settings['signals'][
                     'sigkill'
                 ] - 1:
-                    print_out(
+                    print_helpers.print_out(
                         '\rGot too many {u1}<C-c>{u0}s. ABAAAAAAANDON SHIP!'
                         )
-                    cleanup_terminal()
+                    print_helpers.cleanup_terminal()
                     exit(0)
             else:
                 raw_input_async.kill_sigs = 0

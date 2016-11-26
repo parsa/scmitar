@@ -64,20 +64,21 @@ def switch(args):
     return modes.debugging, 'Switch to session #%s\n%s' % (current_session_tag, _ls_out())
 
 
-def end(args):
+def _kill_all():
     for s_i in console.list_sessions():
         if s_i.is_alive():
             s_i.query('-gdb-exit')
+    console.close_all_sessions()
     session_dict = None
+
+
+def end(args):
+    _kill_all()
     return modes.offline, None
 
 
 def quit(args):
-    for s_i in console.list_sessions():
-        s_i.query('-gdb-exit')
-    console.close_all_sessions()
-    session_dict = None
-
+    _kill_all()
     return modes.quit, None
 
 

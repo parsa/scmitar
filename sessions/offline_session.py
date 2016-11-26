@@ -16,6 +16,7 @@ import pexpect
 import console
 import mi_interface
 import debug_session
+import schedulers.investigator as csssi # chief scimitar scheduler system investigator
 from util import config, print_ahead, print_out, configuration
 #######################
 # mode: offline
@@ -23,17 +24,54 @@ from util import config, print_ahead, print_out, configuration
 
 base_machine = None
 
+
+def _ensure_scheduler_exists(cmd, term):
+        try:
+            csssi.detect_scheduler(term)
+        except csssi.NoSchedulerFoundError:
+            raise errors.CommandFailedError(cmd, 'Unable to detect the scheduling system type on this machine')
+
 def job(args):
     # Verify command syntax
-    if len(args) > 1:
-        raise errors.BadArgsError('job', 'job\nor\njob <job_id>')
+    if len(args) > 2:
+        raise errors.BadArgsError('job', 'job[ <job_id>[ <app>]]')
 
-    if len(args) == 0:
-        pass
-    else:
-        id = args[0]
+    pid_dict = None
+    with console.Terminal() as term:
+        _ensure_scheduler_exists('job', term)
+        if len(args) == 0 or args[0] == 'auto':
+            try:
+                job_id = csssi.detect_active_job(term)
+            except csssi.MoreThanOneActiveJobError:
+                raise errors.CommandFailedError('job', 'Found more than one job. Cannot proceed')
+        else:
+            job_id = args[0]
+        app = args[1] if len(args) == 2 else None
+        try:
+            pid_dict = csssi.ls_job_pids(term, job_id, app)
+        except csssi.InvalidJobError:
+            raise errors.CommandFailedError('job', '{0} does not seem to be a valid job id'.format(job_id))
+        except csssi.NoRunningAppFoundError:
+            raise errors.CommandFailedError('job', 'Unable to find an MPI application running in job {0}'.format(job_id))
 
-    raise errors.CommandImplementationIncompleteError
+    # Launch GDB and attach to PIDs
+    _attach_pids(pid_dict)
+
+    # Initialize the debugging session
+    return debug_session.init_session_dict(console.get_oldest_session().tag)
+
+
+def list_jobs(args):
+    # Verify command syntax
+    if len(args) > 0:
+        raise errors.BadArgsError('jobs', 'This command does not accept arguments.')
+
+    with console.Terminal() as term:
+        _ensure_scheduler_exists('jobs', term)
+        items = csssi.ls_user_jobs(term)
+        jobs_str = ('\n    ' + '\n    '.join(items)) if items else '\r\n    None'
+        return modes.offline, 'Current jobs:' + jobs_str
+
 
 
 def _find_dead_pids_host(host, pids):
@@ -139,7 +177,7 @@ def add_hop(args):
 def pop_hop(args):
     # Verify command syntax
     if len(args) > 0:
-        raise errors.BadArgsError('pop', 'No arguments.\r\nSyntax:\r\n\tpop')
+        raise errors.BadArgsError('pop', 'This command does not accept arguments.')
 
     try:
         console.pop_hop();
@@ -150,8 +188,12 @@ def pop_hop(args):
 
 
 def list_hops(args):
+    # Verify command syntax
+    if len(args) > 0:
+        raise errors.BadArgsError('pop', 'This command does not accept arguments.')
+
     items = console.list_hops()
-    hops_str = '\r\n    '.join(items) if items else '\r\n    None'
+    hops_str = ('\n    ' + '\n    '.join(items)) if items else '\n    None'
     return modes.offline, 'Current hops:' + hops_str
 
 
@@ -163,10 +205,11 @@ def debug(args):
 
 
 commands = {
-    'chain': add_hop,
+    'hop': add_hop,
     'pop': pop_hop,
     'hops': list_hops,
     'job': job,
+    'jobs': list_jobs,
     'attach': attach,
     'debug': debug, # HACK: For debugging only
     'quit': quit,

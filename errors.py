@@ -55,11 +55,6 @@ class UnexpectedResponseError(ScimitarError):
     pass
 
 
-class NoRunningAppFoundError(ScimitarError):
-    '''Raised when no running application is found on the system'''
-    pass
-
-
 class CommandImplementationIncompleteError(ScimitarError):
     '''Raised when a command I had to remove is called.'''
     pass

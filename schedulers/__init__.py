@@ -11,11 +11,4 @@
 #
 
 
-class slurm_type:
-    pass
-
-class pbs_type:
-    pass
-
-
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:
