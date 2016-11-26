@@ -24,61 +24,43 @@ from util import config, print_ahead, print_out, configuration
 base_machine = None
 
 def job(args):
-    try:
-        pids = []
-        for arg in args:
-            pids.append(int(arg))
-        _local_s.launch(pids)
-        return (modes.to_local, None)
-    except ValueError:
-        raise BadArgsError(
-            'job', 'Was expecting PIDs, received non-integer(s): {0}'.
-            format(repr(args))
-        )
-    raise errors.CommandImplementationIncompleteError
-    #_local_s.launch(pids)
-    #raise CommandImplementationIncompleteError
-    #return (modes.job, None)
-
-
-def attach(args):
-    args_string = ' '.join(args)
     # Verify command syntax
-    if len(args) < 1 or not re.match('(?:(?:\w+:)?\d+|\s)+', args_string):
-        raise errors.BadArgsError('attach', 'attach [<host>:]<pid>[ [<host>:]<pid> [...]]')
+    if len(args) > 1:
+        raise errors.BadArgsError('job', 'job\nor\njob <job_id>')
 
-    # Group by host
-    pid_list = {}
-    for app_instance in re.finditer('((?:(\w+):)?(\d+))', args_string):
-        host = app_instance.group(2) # or base_machine
-        pid = int(app_instance.group(3))
+    if len(args) == 0:
+        pass
+    else:
+        id = args[0]
 
-        if pid_list.has_key(host):
-            pid_list[host] += [pid]
-        else:
-            pid_list[host] = [pid]
+    raise errors.CommandImplementationIncompleteError
 
+
+def _find_dead_pids_host(host, pids):
+    dead_pids = []
+    with console.Terminal(host) as term:
+        for pid in pids:
+            if not term.is_pid_alive(pid):
+                host_path = '.'.join(console.list_hops())
+                if host:
+                    host_path += '.' + host
+                dead_pids.append('{host}:{pid}'.format(host=host_path or 'localhost', pid=pid))
+    return dead_pids
+
+
+def _find_dead_pids(pid_dict):
     # Check the status of all provided PIDs
     dead_pids = []
-    for host in pid_list.iterkeys():
+    for host, pids in pid_dict.iteriterms():
         # Establish a connection per each process
-        with console.Terminal(host) as term:
-            for pid in pid_list[host]:
-                if not term.is_pid_alive(pid):
-                    host_path = '.'.join(console.list_hops())
-                    if host:
-                        host_path += '.' + host
-                    dead_pids.append('{host}:{pid}'.format(host=host_path or 'localhost', pid=pid))
+        dead_pids.extend(_find_dead_pids_host(host, pids))
+    return dead_pids
 
-    # Stop if all processes are alive
-    if len(dead_pids) != 0:
-        raise errors.CommandFailedError(
-            'attach', 'Invalid PIDs provided: {0}'.format(
-            ' ,'.join(dead_pids)))
 
+def _attach_pids(pid_dict):
     tag_counter = 0
-    for host in pid_list.iterkeys():
-        for pid in pid_list[host]:
+    for host in pid_dict.iterkeys():
+        for pid in pid_dict[host]:
 
             tag_counter += 1
 
@@ -93,9 +75,7 @@ def attach(args):
 
             print_out('Host "{host}", Process "{pid}"...', host=host or 'localhost', pid=pid)
 
-            term = console.Terminal(host)
-            term.meta = pid
-            term.tag = str(tag_counter)
+            term = console.Terminal(target_host=host, meta=pid, tag=str(tag_counter))
             term.connect()
 
             try:
@@ -103,10 +83,41 @@ def attach(args):
                 term.prompt_re = r'\(gdb\)\ \r\n'
                 gdb_response = term.query(cmd_str)
                 r, c, t, l = mi_interface.parse(gdb_response)
-                print(''.join([c, t, l]))
+                print_out(''.join([c, t, l]))
             except pexpect.ExceptionPexpect as e:
                 raise errors.CommandFailedError('attach', 'attach', e)
 
+
+def attach(args):
+    args_string = ' '.join(args)
+    # Verify command syntax
+    if len(args) < 1 or not re.match('(?:(?:\w+:)?\d+|\s)+', args_string):
+        raise errors.BadArgsError('attach', 'attach [<host>:]<pid>[ [<host>:]<pid> [...]]')
+
+    # Group by host
+    pid_dict = {}
+    for app_instance in re.finditer('((?:(\w+):)?(\d+))', args_string):
+        host = app_instance.group(2) # or base_machine
+        pid = int(app_instance.group(3))
+
+        if pid_dict.has_key(host):
+            pid_dict[host] += [pid]
+        else:
+            pid_dict[host] = [pid]
+
+    # Check the status of all provided PIDs
+    dead_pids = _find_dead_pids(pid_dict)
+
+    # Stop if all processes are alive
+    if len(dead_pids) != 0:
+        raise errors.CommandFailedError(
+            'attach', 'Invalid PIDs provided: {0}'.format(
+            ' ,'.join(dead_pids)))
+
+    # Launch GDB and attach to PIDs
+    _attach_pids(pid_dict)
+
+    # Initialize the debugging session
     return debug_session.init_session_dict(console.get_oldest_session().tag)
 
 

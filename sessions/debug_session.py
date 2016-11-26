@@ -41,7 +41,7 @@ def _ls_out():
             ls_head = s_i.tag
         else:
             ls_head = '(*) ' + s_i.tag
-        ls_out.append('%6s) %s:%d' % (ls_head, s_i.host, s_i.meta,))
+        ls_out.append('%6s) %s:%d' % (ls_head, s_i.hostname, s_i.meta,))
     return '\n'.join(ls_out)
     
 

@@ -40,10 +40,10 @@ def list_sessions():
     return all_sessions
 
 
-def add_hop(host):
+def add_hop(hop):
     if len(all_sessions) > 0:
         raise errors.CommandFailedError('Cannot add a hop while connections alive.')
-    hops.append(host)
+    hops.append(hop)
 
 
 def pop_hop():
@@ -65,16 +65,16 @@ class Terminal(object):
     ps1_re = r'SCIMITAR_PS\s+\$ '
 
 
-    def __init__(self, node=None):
-        self.node = node
+    def __init__(self, target_host=None, meta=None, tag=None, exit_re=None, prompt_re=None):
         self.con = None
+        self.target_host = target_host
 
-        self.host = 'localhost'
-        self.meta = None
-        self.tag = None
+        self.hostname = 'localhost'
+        self.meta = meta
+        self.tag = tag
 
-        self.exit_re = None
-        self.prompt_re = None
+        self.exit_re = exit_re
+        self.prompt_re = prompt_re
 
 
     def __enter__(self):
@@ -86,13 +86,13 @@ class Terminal(object):
 
         self.con = pexpect.spawn('/usr/bin/env bash')
 
-        for host in hops:
-            self.con.sendline('ssh -tt {host}'.format(host=host))
-            self.host = host
+        for hop in hops:
+            self.con.sendline('ssh -tt {host}'.format(host=hop))
+            self.hostname = hop
 
-        if self.node:
-            self.con.sendline('ssh -tt {host}'.format(host=self.node))
-            self.host = self.node
+        if self.target_host:
+            self.con.sendline('ssh -tt {host}'.format(host=self.target_host))
+            self.hostname = self.target_host
 
         self.con.sendline(self.ps1_export_cmd)
         self.con.expect(self.ps1_re)
@@ -146,6 +146,12 @@ class Terminal(object):
         raise errors.UnexpectedResponseError
 
 
+    def test_query(self, cmd):
+        if re.match('^.*aye[\r\n]*$', self.query('{cmd} >/dev/null 2>&1 && echo aye || echo nay'.format(cmd=cmd)), re.DOTALL):
+            return True
+        return False
+
+
     def is_pid_alive(self, process_id):
         """Checks if a PID is still valid
 
@@ -153,9 +159,7 @@ class Terminal(object):
         :returns: bool
 
         """
-        if re.match('^.*aye[\r\n]*$', self.query('ps -p {pid} >/dev/null 2>&1 && echo aye || echo nay'.format(pid=process_id)), re.DOTALL):
-            return True
-        return False
+        return self.test_query('ps -p {pid}'.format(pid=process_id), re.DOTALL)
 
 
     def is_alive(self):
@@ -163,4 +167,6 @@ class Terminal(object):
 
 
     def __repr__(self):
-        return '<Terminal %s @%s:%d>' % (self.tag, self.host, self.meta,)
+        return '<Terminal %s @%s:%d>' % (self.tag, self.hostname, self.meta,)
+
+# vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:
