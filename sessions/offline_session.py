@@ -17,9 +17,11 @@ import console
 import mi_interface
 import debug_session
 import schedulers.investigator as csssi # chief scimitar scheduler system investigator
-from util import config, print_ahead, print_out, print_info, print_warning, configuration
+from util import print_ahead, print_out, print_info, print_warning
+from config import settings
 
 
+gdb_config = settings['gdb']
 base_machine = None
 
 
@@ -107,7 +109,6 @@ def _attach_pid(host, pid, tag, cmd):
 
 
 def _attach_pids(pid_dict):
-    gdb_config = configuration.get_gdb_config()
     gdb_cmd = gdb_config['cmd']
     gdb_attach_tmpl = gdb_config['attach']
 
