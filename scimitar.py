@@ -74,85 +74,86 @@ command_handler_switcher = {
 
 
 def main():
-    # Clear the terminal
-    vt100.terminal.reset()
-    # Ahoy
-    print_out(BANNER)
-
-    # Initial session mode
-    state = modes.offline
-
-    # Init readline
-    history.load_history()
-
-    # Async output printing
-    thread.start_new_thread(noise, ())
-
-    prompts_list = config.settings['ui']['prompts']
-    get_prompt = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
-
-    # Main loop
-    while state != modes.quit:
-        vt100.unlock_keyboard()
-        # FIXME: raw_input_async still is a blocking call. Have found no way to
-        # avoid it. Reason: readline initiates a system call that I have no
-        # clue to get out of.
-        user_input, key_seq = raw_input_async(get_prompt())
-        # HACK: Temporarily disabled for debugging
-        #vt100.lock_keyboard()
-        ## HACK: Display the user's input
-        #print_out(user_input.encode('string_escape') if user_input else '')
-
-        # An empty string is a valid empty
-        # If the input was a control signal split might just remove it
-        packed_input = user_input if user_input else key_seq
-        if not packed_input:
-            continue
-        cmd, args = packed_input[0], packed_input[1:]
-        # Run the appropriate mode's processing function
-        cmd_processor_fn = command_handler_switcher.get(state)
-
-        try:
-            state, update_msg = cmd_processor_fn(cmd, args)
-            if update_msg:
-                print_out(update_msg)
-        except errors.UnknownCommandError as e:
-            print_error(
-                'Unknown command: {u1}{cmd}{u0}', cmd = repr_str(e.expression)
-            )
-        except errors.BadArgsError as e:
-            print_error(
-                'Command "{u1}{cmd}{u0}" cannot be initiated with the arguments provided.\n{msg}',
-                cmd = e.expression,
-                msg = e.message
-            )
-        except errors.BadConfigError as e:
-            print_error(
-                'The command encountered errors with the provided arguments.\n{u1}{cmd}{u0}: {msg}',
-                cmd = e.expression,
-                msg = e.message
-            )
-        except errors.CommandFailedError as e:
-            print_error(
-                'The command encountered an error and did not run properly.\n{u1}{cmd}{u0}: {msg}',
-                cmd = e.expression,
-                msg = e.message
-            )
-        except errors.CommandImplementationIncompleteError:
-            print_error(
-                'The implementation of command "{u1}{cmd}{u0}" is not complete yet.',
-                cmd = cmd
-            )
-        except KeyboardInterrupt:
-            print_error('Action cancelled by the user.')
+    try:
+        # NOTE: Multiple SIGKILLs required to force close.
+        raw_input_async.last_kill_sig = None
+        
+        # Clear the terminal
+        vt100.terminal.reset()
+        # Ahoy
+        print_out(BANNER)
+        
+        # Initial session mode
+        state = modes.offline
+        
+        # Init readline
+        history.load_history()
+        
+        # Async output printing
+        thread.start_new_thread(noise, ())
+        
+        prompts_list = config.settings['ui']['prompts']
+        get_prompt = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
+        
+        # Main loop
+        while state != modes.quit:
+            vt100.unlock_keyboard()
+            # FIXME: raw_input_async still is a blocking call. Have found no way to
+            # avoid it. Reason: readline initiates a system call that I have no
+            # clue to get out of.
+            user_input, key_seq = raw_input_async(get_prompt())
+            # HACK: Temporarily disabled for debugging
+            #vt100.lock_keyboard()
+            ## HACK: Display the user's input
+            #print_out(user_input.encode('string_escape') if user_input else '')
+        
+            # An empty string is a valid empty
+            # If the input was a control signal split might just remove it
+            packed_input = user_input if user_input else key_seq
+            if not packed_input:
+                continue
+            cmd, args = packed_input[0], packed_input[1:]
+            # Run the appropriate mode's processing function
+            cmd_processor_fn = command_handler_switcher.get(state)
+        
+            try:
+                state, update_msg = cmd_processor_fn(cmd, args)
+                if update_msg:
+                    print_out(update_msg)
+            except errors.UnknownCommandError as e:
+                print_error(
+                    'Unknown command: {u1}{cmd}{u0}', cmd = repr_str(e.expression)
+                )
+            except errors.BadArgsError as e:
+                print_error(
+                    'Command "{u1}{cmd}{u0}" cannot be initiated with the arguments provided.\n{msg}',
+                    cmd = e.expression,
+                    msg = e.message
+                )
+            except errors.BadConfigError as e:
+                print_error(
+                    'The command encountered errors with the provided arguments.\n{u1}{cmd}{u0}: {msg}',
+                    cmd = e.expression,
+                    msg = e.message
+                )
+            except errors.CommandFailedError as e:
+                print_error(
+                    'The command encountered an error and did not run properly.\n{u1}{cmd}{u0}: {msg}',
+                    cmd = e.expression,
+                    msg = e.message
+                )
+            except errors.CommandImplementationIncompleteError:
+                print_error(
+                    'The implementation of command "{u1}{cmd}{u0}" is not complete yet.',
+                    cmd = cmd
+                )
+            except KeyboardInterrupt:
+                print_error('Action cancelled by the user.')
+    finally:
+        cleanup_terminal()
 
 
 if __name__ == '__main__':
-    # NOTE: Multiple SIGKILLs required to force close.
-    raw_input_async.last_kill_sig = None
-    try:
-        main()
-    finally:
-        cleanup_terminal()
+    main()
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

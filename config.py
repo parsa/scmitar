@@ -15,8 +15,8 @@ settings = {
     {
         'prompts':
             [
-                '# ',
-                '$ ',
+                '# ', # Level 0: Offline mode
+                '$ ', # Level 1: Debugging mode
             ],
     },
     'signals':
