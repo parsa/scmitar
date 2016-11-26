@@ -43,7 +43,6 @@ settings = {
                 '--nx',             # Don't load any .gdbinits whatsoever
             ],
         'attach': '--pid={pid}',
-        'mi_prompt_pattern': '\[(\]gdb\[)\] \[\r\n\]+',
     },
 }
 

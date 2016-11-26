@@ -17,10 +17,11 @@ import re
 import select
 import print_helpers
 
-import config
 from . import signals
 from . import vt100 as v
+from config import settings
 
+signals_config = settings['signals']
 FORMAT_CONSTS = {'u1': v.format._underline_on, 'u0': v.format._underline_off}
 
 
@@ -93,11 +94,9 @@ def raw_input_async(prompt = '', timeout = 5):
         # HACK: Disable for production
         if raw_input_async.last_kill_sig:
             if (time.now() - raw_input_async.last_kill_sig
-                ).seconds < config.settings['signals']['sigkill_last']:
+                ).seconds < signals_config['sigkill_last']:
                 # The user is frantically sending <C-c>s
-                if raw_input_async.kill_sigs >= config.settings['signals'][
-                    'sigkill'
-                ] - 1:
+                if raw_input_async.kill_sigs >= signals_config['sigkill'] - 1:
                     print_helpers.print_out(
                         '\rGot too many {u1}<C-c>{u0}s. ABAAAAAAANDON SHIP!'
                         )
