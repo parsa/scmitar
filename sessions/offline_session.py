@@ -94,12 +94,12 @@ def _find_dead_pids(pid_dict):
 
 
 def _attach_pid(host, pid, tag):
-    term = console.Terminal(target_host=host, meta=pid, tag=tag)
+    term = console.Terminal(target_host=host, meta=pid, tag=tag, cmd)
     term.connect()
 
     term.exit_re = r'&"quit\n"|\^exit'
     term.prompt_re = r'\(gdb\)\ \r\n'
-    gdb_response = term.query(cmd_str)
+    gdb_response = term.query(cmd)
     try:
         return mi_interface.parse(gdb_response)
     except pexpect.ExceptionPexpect as e:
@@ -124,7 +124,7 @@ def _attach_pids(pid_dict):
 
             print_out('Host "{host}", Process "{pid}"...', host=host or 'localhost', pid=pid)
 
-            r, c, t, l = _attach_pid(host, pid, str(tag_counter))
+            r, c, t, l = _attach_pid(host, pid, str(tag_counter), cmd_str)
 
             print_out(''.join([c, t, l]))
 
