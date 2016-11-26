@@ -17,7 +17,7 @@ import console
 import mi_interface
 import debug_session
 import schedulers.investigator as csssi # chief scimitar scheduler system investigator
-from util import config, print_ahead, print_out, configuration
+from util import config, print_ahead, print_out, print_info, print_warning, configuration
 
 
 base_machine = None
@@ -93,8 +93,8 @@ def _find_dead_pids(pid_dict):
     return dead_pids
 
 
-def _attach_pid(host, pid, tag):
-    term = console.Terminal(target_host=host, meta=pid, tag=tag, cmd)
+def _attach_pid(host, pid, tag, cmd):
+    term = console.Terminal(target_host=host, meta=pid, tag=tag)
     term.connect()
 
     term.exit_re = r'&"quit\n"|\^exit'
@@ -122,11 +122,13 @@ def _attach_pids(pid_dict):
             cmd = gdb_cmd + [gdb_attach_tmpl.format(pid = pid)]
             cmd_str = ' '.join(cmd)
 
-            print_out('Host "{host}", Process "{pid}"...', host=host or 'localhost', pid=pid)
+            print_info('Host "{host}", Process "{pid}"...', host=host or 'localhost', pid=pid)
 
             r, c, t, l = _attach_pid(host, pid, str(tag_counter), cmd_str)
 
             print_out(''.join([c, t, l]))
+
+    print_info('Hosts connected. Debugging session starting...')
 
 
 def attach(args):

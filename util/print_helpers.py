@@ -42,6 +42,24 @@ def print_error(expr, *args, **kwargs):
     )
 
 
+def print_warning(expr, *args, **kwargs):
+    '''Standard print() function for warinings in Scimitar'''
+    print_out(
+        '\r' + v.format._clear_all_chars_attrs +
+        v.format._alternate_intesity_on + v.format._fg_yellow + expr +
+        v.format._clear_all_chars_attrs, *args, **kwargs
+    )
+
+
+def print_info(expr, *args, **kwargs):
+    '''Standard print() function for information messages in Scimitar'''
+    print_out(
+        '\r' + v.format._clear_all_chars_attrs +
+        v.format._alternate_intesity_on + v.format._fg_blue + expr +
+        v.format._clear_all_chars_attrs, *args, **kwargs
+    )
+
+
 def print_ahead(expr, prompt = '', *args, **kwargs):
     '''Prints expr above the current line'''
     current_input = readline.get_line_buffer()
