@@ -18,9 +18,7 @@ import mi_interface
 import debug_session
 import schedulers.investigator as csssi # chief scimitar scheduler system investigator
 from util import config, print_ahead, print_out, configuration
-#######################
-# mode: offline
-#######################
+
 
 base_machine = None
 
@@ -95,35 +93,40 @@ def _find_dead_pids(pid_dict):
     return dead_pids
 
 
+def _attach_pid(host, pid, tag):
+    term = console.Terminal(target_host=host, meta=pid, tag=tag)
+    term.connect()
+
+    term.exit_re = r'&"quit\n"|\^exit'
+    term.prompt_re = r'\(gdb\)\ \r\n'
+    gdb_response = term.query(cmd_str)
+    try:
+        return mi_interface.parse(gdb_response)
+    except pexpect.ExceptionPexpect as e:
+        raise errors.CommandFailedError('attach', 'attach', e)
+
+
 def _attach_pids(pid_dict):
+    gdb_config = configuration.get_gdb_config()
+    gdb_cmd = gdb_config['cmd']
+    gdb_attach_tmpl = gdb_config['attach']
+
     tag_counter = 0
+
+    # Start GDB instances
     for host in pid_dict.iterkeys():
         for pid in pid_dict[host]:
-
             tag_counter += 1
 
-            # Start all GDB instances
-            gdb_config = configuration.get_gdb_config()
-            gdb_cmd = gdb_config['cmd']
-
             # Build the command line and launch GDB
-            gdb_cmd += [gdb_config['attach'].format(pid = pid)]
-            #cmd = ['ssh', host].extend(gdb_cmd)
-            cmd_str = ' '.join(gdb_cmd)
+            cmd = gdb_cmd + [gdb_attach_tmpl.format(pid = pid)]
+            cmd_str = ' '.join(cmd)
 
             print_out('Host "{host}", Process "{pid}"...', host=host or 'localhost', pid=pid)
 
-            term = console.Terminal(target_host=host, meta=pid, tag=str(tag_counter))
-            term.connect()
+            r, c, t, l = _attach_pid(host, pid, str(tag_counter))
 
-            try:
-                term.exit_re = r'&"quit\n"|\^exit'
-                term.prompt_re = r'\(gdb\)\ \r\n'
-                gdb_response = term.query(cmd_str)
-                r, c, t, l = mi_interface.parse(gdb_response)
-                print_out(''.join([c, t, l]))
-            except pexpect.ExceptionPexpect as e:
-                raise errors.CommandFailedError('attach', 'attach', e)
+            print_out(''.join([c, t, l]))
 
 
 def attach(args):
