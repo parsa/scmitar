@@ -15,27 +15,23 @@ import modes
 import console
 import mi_interface
 
-session_dict = None
+session_manager = None
 current_session_tag = None
 
 
-def init_session_dict(current_tag):
+def init_session_dict(mgr):
     global current_session_tag
-    global session_dict
+    global session_manager
 
-    if not session_dict:
-        session_dict = {}
-        for s_i in console.list_sessions():
-            session_dict[s_i.tag] = s_i
-
-    current_session_tag = current_tag
+    session_manager = mgr
+    current_session_tag = mgr.get_oldest().tag
 
     return modes.debugging, None
 
 
 def _ls_out():
     ls_out = []
-    for s_i in session_dict.itervalues():
+    for s_i in session_manager.ls_sessions():
         if s_i.tag != current_session_tag:
             ls_head = s_i.tag
         else:
@@ -59,7 +55,7 @@ def switch(args):
 
     id = args[0]
 
-    if not session_dict.has_key(id):
+    if not session_manager.exists(id):
         raise errors.BadArgsError('switch', 'No such session exists.')
 
     global current_session_tag
@@ -70,11 +66,13 @@ def switch(args):
 
 
 def _kill_all():
-    for s_i in console.list_sessions():
+    for s_i in session_manager.ls_sessions():
         if s_i.is_alive():
             s_i.query('-gdb-exit')
-    console.close_all_sessions()
-    session_dict = None
+    session_manager.kill_all()
+
+    global session_manager
+    session_manager = None
 
 
 def end(args):
@@ -88,20 +86,20 @@ def quit(args):
 
 
 def gdb_exec(cmd):
-    if not session_dict.has_key(current_session_tag):
+    if not session_manager.exists(current_session_tag):
         raise errors.BadArgsError('gdb_exec', 'This session is dead.')
 
-    cs = session_dict[current_session_tag]
+    cs = session_manager.get(current_session_tag)
     gdb_response = cs.query(' '.join(cmd))
     if gdb_response in (r'^exit', r'^kill'):
-        session_dict.pop(current_session_tag)
+        session_manager.rm(current_session_tag)
         raise errors.CommandFailedError('gdb_exec', 'Session died.')
     indrec, cout, tout, lout = mi_interface.parse(gdb_response)
 
     if indrec[0] == mi_interface.indicator_error:
         raise errors.CommandFailedError('gdb_exec', indrec[1])
     elif indrec[0] == mi_interface.indicator_exit:
-        session_dict.pop(current_session_tag)
+        session_manager.rm(current_session_tag)
         raise errors.CommandFailedError('gdb_exec', 'Session died.')
     return modes.debugging, cout
 

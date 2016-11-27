@@ -21,16 +21,38 @@ from util import print_ahead, print_out, print_info, print_warning
 from config import settings
 
 gdb_config = settings['gdb']
-base_machine = None
+hops = console.HopManager()
+default_terminal = None
+default_terminal_scheduler = None
 
 
-def _ensure_scheduler_exists(cmd, term):
-    try:
-        csssi.detect_scheduler(term)
-    except csssi.NoSchedulerFoundError:
-        raise errors.CommandFailedError(
-            cmd, 'Unable to detect the scheduling system type on this machine.'
-        )
+def _establish_default_terminal(reestablish=False):
+    global default_terminal
+    if not default_terminal:
+        default_terminal = console.Terminal(hops.ls())
+        default_terminal.connect()
+    elif reestablish:
+            global default_terminal_scheduler
+            default_terminal.close()
+
+            default_terminal_scheduler = None
+            default_terminal = None
+
+
+def _cleanup_default_terminal():
+    if default_terminal:
+            default_terminal.close()
+
+
+def _ensure_scheduler_exists(cmd):
+    if not default_terminal_scheduler:
+        try:
+            global default_terminal_scheduler
+            default_terminal_scheduler = csssi.detect_scheduler(default_terminal)
+        except csssi.NoSchedulerFoundError:
+            raise errors.CommandFailedError(
+                cmd, 'Unable to detect the scheduling system type on this machine.'
+            )
 
 
 def job(args):
@@ -39,40 +61,41 @@ def job(args):
         raise errors.BadArgsError('job', 'job[ <job_id>[ <app>]]')
 
     pid_dict = None
-    with console.Terminal() as term:
-        _ensure_scheduler_exists('job', term)
-        if len(args) == 0 or args[0] == 'auto':
-            try:
-                job_id = csssi.detect_active_job(term)
-            except csssi.NoActiveJobError:
-                raise errors.CommandFailedError(
-                    'job', 'No active user jobs found. Cannot proceed.'
-                )
-            except csssi.MoreThanOneActiveJobError:
-                raise errors.CommandFailedError(
-                    'job', 'Found more than one job. Cannot proceed.'
-                )
-        else:
-            job_id = args[0]
-        app = args[1] if len(args) == 2 else None
+
+    _establish_default_terminal()
+    _ensure_scheduler_exists('job')
+    if len(args) == 0 or args[0] == 'auto':
         try:
-            pid_dict = csssi.ls_job_pids(term, job_id, app)
-        except csssi.InvalidJobError:
+            job_id = csssi.detect_active_job(default_terminal)
+        except csssi.NoActiveJobError:
             raise errors.CommandFailedError(
-                'job',
-                '{0} does not seem to be a valid job id'.format(job_id)
+                'job', 'No active user jobs found. Cannot proceed.'
             )
-        except csssi.NoRunningAppFoundError:
+        except csssi.MoreThanOneActiveJobError:
             raise errors.CommandFailedError(
-                'job', 'Unable to find an MPI application running in job {0}'.
-                format(job_id)
+                'job', 'Found more than one job. Cannot proceed.'
             )
+    else:
+        job_id = args[0]
+    app = args[1] if len(args) == 2 else None
+    try:
+        pid_dict = csssi.ls_job_pids(default_terminal, job_id, app)
+    except csssi.InvalidJobError:
+        raise errors.CommandFailedError(
+            'job',
+            '{0} does not seem to be a valid job id'.format(job_id)
+        )
+    except csssi.NoRunningAppFoundError:
+        raise errors.CommandFailedError(
+            'job', 'Unable to find an MPI application running in job {0}'.
+            format(job_id)
+        )
 
     # Launch GDB and attach to PIDs
-    _attach_pids(pid_dict)
+    session_manager = _attach_pids(pid_dict)
 
     # Initialize the debugging session
-    return debug_session.init_session_dict(console.get_oldest_session().tag)
+    return debug_session.init_session_dict(session_manager)
 
 
 def list_jobs(args):
@@ -82,27 +105,29 @@ def list_jobs(args):
             'jobs', 'This command does not accept arguments.'
         )
 
-    with console.Terminal() as term:
-        _ensure_scheduler_exists('jobs', term)
-        items = csssi.ls_user_jobs(term)
-        jobs_str = ('\n    ' + '\n    '.join(items)
-                    ) if items else '\r\n    None'
-        return modes.offline, 'Current jobs:' + jobs_str
+    _establish_default_terminal()
+    _ensure_scheduler_exists('jobs')
+    items = csssi.ls_user_jobs(default_terminal)
+    jobs_str = ('\n    ' + '\n    '.join(items)
+                ) if items else '\r\n    None'
+    return modes.offline, 'Current jobs:' + jobs_str
 
 
 def _find_dead_pids_host(host, pids):
     dead_pids = []
-    with console.Terminal(host) as term:
-        for pid in pids:
-            if not term.is_pid_alive(pid):
-                host_path = '.'.join(console.list_hops())
-                if host:
-                    host_path += '.' + host
-                dead_pids.append(
-                    '{host}:{pid}'.format(
-                        host = host_path or 'localhost', pid = pid
-                    )
+
+    _establish_default_terminal()
+    _ensure_scheduler_exists('jobs')
+    for pid in pids:
+        if not default_terminal.is_pid_alive(pid):
+            host_path = '.'.join(hops.ls())
+            if host:
+                host_path += '.' + host
+            dead_pids.append(
+                '{host}:{pid}'.format(
+                    host = host_path or 'localhost', pid = pid
                 )
+            )
     return dead_pids
 
 
@@ -116,19 +141,24 @@ def _find_dead_pids(pid_dict):
 
 
 def _attach_pid(host, pid, tag, cmd):
-    term = console.Terminal(target_host = host, meta = pid, tag = tag)
+    term = console.Terminal(
+        hops.ls(), target_host = host, meta = pid, tag = tag
+    )
     term.connect()
 
     term.exit_re = r'&"quit\n"|\^exit'
     term.prompt_re = r'\(gdb\)\ \r\n'
     gdb_response = term.query(cmd)
     try:
-        return mi_interface.parse(gdb_response)
+        mi_response = mi_interface.parse(gdb_response)
+        return term, mi_response
     except pexpect.ExceptionPexpect as e:
         raise errors.CommandFailedError('attach', 'attach', e)
 
 
 def _attach_pids(pid_dict):
+    mgr = console.SessionManager()
+
     gdb_cmd = gdb_config['cmd']
     gdb_attach_tmpl = gdb_config['attach']
 
@@ -149,11 +179,28 @@ def _attach_pids(pid_dict):
                 pid = pid
             )
 
-            r, c, t, l = _attach_pid(host, pid, str(tag_counter), cmd_str)
+            session, mi_response = _attach_pid(
+                host, pid, str(tag_counter), cmd_str
+            )
+            mgr.add(session)
+            r, c, t, l = mi_response
 
             print_out(''.join([c, t, l]))
 
     print_info('Hosts connected. Debugging session starting...')
+    return mgr
+
+
+def _parse_group_pids(expr):
+    pid_dict = {}
+    for app_instance in re.finditer('((?:(\w+):)?(\d+))', expr):
+        host = app_instance.group(2)
+        pid = int(app_instance.group(3))
+
+        if pid_dict.has_key(host):
+            pid_dict[host] += [pid]
+        else:
+            pid_dict[host] = [pid]
 
 
 def attach(args):
@@ -165,15 +212,7 @@ def attach(args):
         )
 
     # Group by host
-    pid_dict = {}
-    for app_instance in re.finditer('((?:(\w+):)?(\d+))', args_string):
-        host = app_instance.group(2) # or base_machine
-        pid = int(app_instance.group(3))
-
-        if pid_dict.has_key(host):
-            pid_dict[host] += [pid]
-        else:
-            pid_dict[host] = [pid]
+    pid_dict = _parse_group_pids(args_string)
 
     # Check the status of all provided PIDs
     dead_pids = _find_dead_pids(pid_dict)
@@ -186,13 +225,14 @@ def attach(args):
         )
 
     # Launch GDB and attach to PIDs
-    _attach_pids(pid_dict)
+    session_manager = _attach_pids(pid_dict)
 
     # Initialize the debugging session
-    return debug_session.init_session_dict(console.get_oldest_session().tag)
+    return debug_session.init_session_dict(session_manager)
 
 
 def quit(args):
+    _cleanup_default_terminal()
     return modes.quit, None
 
 
@@ -202,7 +242,9 @@ def add_hop(args):
         raise errors.BadArgsError('hop', 'hop <host>[ [<host> [...]]')
 
     for host in args:
-        console.add_hop(host)
+        hops.add(host)
+
+    _establish_default_terminal(reestablish = True)
 
     return modes.offline, None
 
@@ -220,18 +262,15 @@ def pop_hop(args):
             raise errors.BadArgsError(
                 'pop', 'pop[ <number of hops to remove>].'
             )
-
     try:
         for _ in range(n_hops_to_remove):
-            console.pop_hop()
+            hops.rm()
     except console.NoHopsError:
         raise errors.CommandFailedError(
             'pop', 'No more hops currently exist. Nothing can be removed'
         )
-    except console.SessionsAliveError:
-        raise errors.CommandFailedError(
-            'pop', 'Cannot add a hop while there are active sessions.'
-        )
+
+    _establish_default_terminal(reestablish = True)
 
     return modes.offline, None
 
@@ -243,7 +282,7 @@ def list_hops(args):
             'pop', 'This command does not accept arguments.'
         )
 
-    items = console.list_hops()
+    items = hops.ls()
     hops_str = ('\n    ' + '\n    '.join(items)) if items else '\n    None'
     return modes.offline, 'Current hops:' + hops_str
 
@@ -273,21 +312,7 @@ def process(cmd, args):
     raise errors.UnknownCommandError(cmd)
 
 
-def complete(self, text, state):
-    response = None
-    if state == 0:
-        # If first time for this text build a match list.
-        if text:
-            self.matches = [
-                s for s in commands.keys() if s and s.startswith(text)
-            ]
-        else:
-            self.matches = commands.keys()[:]
-
-    try:
-        response = self.matches[state]
-    except IndexError:
-        response = None
-    return response
+class OfflineSessionCommandCompleter(object):
+    pass
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

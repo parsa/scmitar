@@ -68,7 +68,10 @@ def ls_job_nodes(term, job_id):
     query_cmd = '''squeue -h -o '%N' -j {job_id}'''.format(job_id = job_id)
     cmd_out = term.query(query_cmd)
     cmd_out_san = _sanitize_output(cmd_out)
-    job_nodes = _ungroup_node_names(cmd_out_san)
+
+    job_nodes = []
+    if not 'Invalid' in cmd_out_san:
+        job_nodes = _ungroup_node_names(cmd_out_san)
     return job_nodes
 
 

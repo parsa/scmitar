@@ -14,11 +14,6 @@ import re
 import errors
 import pexpect
 
-hops = []
-all_sessions = []
-
-newest_session_id = -1
-
 
 class SessionsAliveError(errors.ScimitarError):
     "Raised when attempting to modify hops while there are active sessions."
@@ -30,50 +25,82 @@ class NoHopsError(errors.ScimitarError):
     pass
 
 
-def get_oldest_session():
-    if all_sessions:
-        return all_sessions[0]
-    return None
+class HopManager(object):
+
+    def __init__(self):
+        self._hops = None
+
+    def add(self, hop):
+        if not self._hops:
+            self._hops = []
+        self._hops.append(hop)
+
+    def ls(self):
+        return self._hops or []
+
+    def rm(self):
+        if not self._hops:
+            raise NoHopsError
+        return self._hops.pop()
+
+    def is_empty(self):
+        return not self._hops
 
 
-def get_newest_session():
-    if all_sessions and not newest_session_id < 0:
-        return all_sessions[newest_session_id]
-    return None
+class SessionManager(object):
 
+    def __init__(self):
+        self._session_dict = None
+        self._order = None
 
-def list_hops():
-    return hops
+    def add(self, session):
+        if not self._session_dict:
+            self._session_dict = {}
+            self._order = []
+        self._order.append(session)
+        self._session_dict[session.tag] = session
 
+    def rm(self, session_tag):
+        session = self._session_dict.pop(session_tag)
+        self._order.remove(session)
 
-def list_sessions():
-    return all_sessions
+    def ls_sessions(self):
+        if not self._session_dict:
+            return []
+        return self._session_dict.values()
 
+    def ls(self):
+        if not self._session_dict:
+            return []
+        return self._session_dict.keys()
 
-def add_hop(hop):
-    if len(all_sessions) > 0:
-        raise errors.CommandFailedError(
-            'Cannot add a hop while connections alive.'
-        )
-    hops.append(hop)
+    def exists(self, tag):
+        if self._session_dict and self._session_dict.has_key(tag):
+            return True
+        return False
 
+    def get(self, tag):
+        return self._session_dict[tag]
 
-def pop_hop():
-    if len(all_sessions) > 0:
-        raise errors.CommandFailedError(
-            'pop', 'Cannot add a hop while connections alive.'
-        )
-    if len(hops) == 0:
-        raise errors.CommandFailedError(
-            'pop', 'No hops currently exist. Nothing can be removed'
-        )
-    return hops.pop()
+    def is_empty(self):
+        return not self._session_dict
 
+    def kill_all(self):
+        if self._session_dict:
+            for s in self._session_dict.itervalues():
+                s.close()
+        self._session_dict = None
+        self._order = None
 
-def close_all_sessions():
-    if len(all_sessions) > 0:
-        for s in all_sessions:
-            s.close()
+    def get_oldest(self):
+        if not self._order:
+            return None
+        return self._order[0]
+
+    def get_newest(self):
+        if not self._order:
+            return None
+        return self._order[-1]
 
 
 class Terminal(object):
@@ -82,16 +109,19 @@ class Terminal(object):
 
     def __init__(
         self,
+        hops,
         target_host = None,
         meta = None,
         tag = None,
         exit_re = None,
-        prompt_re = None
+        prompt_re = None,
     ):
         self.con = None
-        self.target_host = target_host
+        self.hops = hops
 
         self.hostname = 'localhost'
+
+        self.target_host = target_host
         self.meta = meta
         self.tag = tag
 
@@ -102,11 +132,9 @@ class Terminal(object):
         return self.connect()
 
     def connect(self):
-        global newest_session_id
-
         self.con = pexpect.spawn('/usr/bin/env bash')
 
-        for hop in hops:
+        for hop in self.hops:
             self.con.sendline('ssh -tt {host}'.format(host = hop))
             self.hostname = hop
 
@@ -117,8 +145,7 @@ class Terminal(object):
         self.con.sendline(self.ps1_export_cmd)
         self.con.expect(self.ps1_re)
 
-        all_sessions.append(self)
-        newest_session_id = len(all_sessions) - 1
+        #all_sessions.append(self)
 
         return self
 
@@ -134,7 +161,7 @@ class Terminal(object):
         finally:
             self.con.close()
 
-        all_sessions.remove(self)
+        #all_sessions.remove(self)
 
     def query(self, cmd):
         if not self.con.isalive():

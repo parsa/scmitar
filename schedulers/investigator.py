@@ -102,7 +102,7 @@ def ls_job_pids(term, job_id, job_app = None):
         node_0 = job_nodes[0]
         try:
             job_app = scheduler.which_appname(term, node_0)
-        except IndexError:
+        except (IndexError, AttributeError):
             raise NoRunningAppFoundError
 
     pid_dict = {}
