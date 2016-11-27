@@ -14,6 +14,7 @@ import errors
 import modes
 import console
 import mi_interface
+from command_completer import CommandCompleter
 
 session_manager = None
 current_session_tag = None
@@ -45,7 +46,18 @@ def _ls_out():
 
 
 def ls(args):
+    # Verify command syntax
+    if len(args) != 0:
+        raise errors.BadArgsError('ls', 'This command does not accept arguments')
+
     return modes.debugging, 'Sessions:\n' + _ls_out()
+
+
+def switch_complete(args):
+    if len(args) > 1:
+        return []
+    result = [x.tag for x in session_manager.ls_sessions()]
+    return result
 
 
 def switch(args):
@@ -76,11 +88,19 @@ def _kill_all():
 
 
 def end(args):
+    # Verify command syntax
+    if len(args) != 0:
+        raise errors.BadArgsError('ls', 'This command does not accept arguments')
+
     _kill_all()
     return modes.offline, None
 
 
 def quit(args):
+    # Verify command syntax
+    if len(args) != 0:
+        raise errors.BadArgsError('ls', 'This command does not accept arguments')
+
     _kill_all()
     return modes.quit, None
 
@@ -111,11 +131,11 @@ def debug(args):
 
 
 commands = {
-    'ls': ls,
-    'switch': switch,
-    'debug': debug, # HACK: For debugging only
-    'end': end,
-    'quit': quit,
+    'ls': (ls, None),
+    'switch': (switch, switch_complete),
+    'debug': (debug, None), # HACK: For debugging only
+    'end': (end, None),
+    'quit': (quit, None),
 }
 
 
@@ -125,10 +145,19 @@ def process(cmd, args):
             'Unable to find the current session. Debugger start failed. (Maybe init_session_dict was not called?)'
         )
     if cmd in commands:
-        return commands[cmd](args)
+        return commands[cmd][0](args)
     else:
         return gdb_exec([cmd] + (args or []))
-    #raise errors.UnknownCommandError(cmd)
     raise errors.CommandImplementationIncompleteError
+
+
+class DebugSessionCommandCompleter(CommandCompleter):
+
+    def _complete_command(self):
+        return commands.keys()
+
+    def _complete_command_arguments(self, cmd, args):
+        if commands.has_key(cmd) and commands[cmd][1]:
+            return commands[cmd][1](args)
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

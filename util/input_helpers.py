@@ -122,7 +122,15 @@ def raw_input_async(prompt = '', timeout = 5):
 
 
 def init_terminal():
+    # Init readline
+    history.load_history()
+
+    # Tab completion
     readline.parse_and_bind('tab: complete')
+
+
+def register_completer(cmpl_type):
+    readline.set_completer(cmpl_type)
 
 
 def cleanup_terminal():

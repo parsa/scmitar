@@ -9,7 +9,7 @@
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
-import re
+import readline
 
 
 class CommandCompleter(object):
@@ -17,22 +17,25 @@ class CommandCompleter(object):
     def __init__(self):
         self.current_candidates = []
 
-    def _prune_nonmatches(candidates, being_completed):
+    def _complete_command(self):
+        raise NotImplementedError('Must override _complete_command')
+
+    def _complete_command_arguments(self, command, tokens):
+        raise NotImplementedError('Must override _complete_command_arguments')
+
+    def _prune_nonmatches(self, candidates, being_completed):
         if being_completed:
-            self.current_candidates = [
+            result = [
                 candidate for candidate in candidates
                 if candidate.startswith(being_completed)
             ]
         else:
-            self.current_candidates = candidates
+            result = candidates
 
-    def _complete_command(self):
-        raise NotImplementedError('Must override _complete_command')
-        return commands.keys()
-
-    def _complete_command_arguments(self, command, tokens):
-        raise NotImplementedError('Must override _complete_command_arguments')
-        return self.options[command]
+        # If it's the only choice
+        if result and len(result) == 1:
+            return [result[0] + ' ']
+        return result
 
     def _build_match_list(self, original_line, begin_index, end_index):
         tokens = original_line.split()
@@ -42,17 +45,16 @@ class CommandCompleter(object):
         else:
             try:
                 if begin_index == 0:
-                    candidates = commands.keys()
+                    candidates = self._complete_command()
                 else:
-                    first_token = words[0]
                     candidates = self._complete_command_arguments(
-                        first_token, tokens
+                        tokens[0], tokens[1:]
                     )
-                self._prune_nonmatches(
+                self.matches = self._prune_nonmatches(
                     candidates, original_line[begin_index:end_index]
                 )
             except (KeyError, IndexError):
-                self.current_candidates = []
+                self.matches = []
 
     def complete(self, text, state):
         if state == 0:
@@ -61,7 +63,7 @@ class CommandCompleter(object):
                 readline.get_begidx(), readline.get_endidx()
             )
         try:
-            return self.current_candidates[state]
+            return self.matches[state]
         except IndexError:
             pass
         return None

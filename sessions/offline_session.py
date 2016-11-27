@@ -19,6 +19,7 @@ import debug_session
 import schedulers.investigator as csssi # chief scimitar scheduler system investigator
 from util import print_ahead, print_out, print_info, print_warning
 from config import settings
+from command_completer import CommandCompleter
 
 gdb_config = settings['gdb']
 hops = console.HopManager()
@@ -26,33 +27,48 @@ default_terminal = None
 default_terminal_scheduler = None
 
 
-def _establish_default_terminal(reestablish=False):
+def _establish_default_terminal(reestablish = False):
     global default_terminal
     if not default_terminal:
         default_terminal = console.Terminal(hops.ls())
         default_terminal.connect()
     elif reestablish:
-            global default_terminal_scheduler
-            default_terminal.close()
+        global default_terminal_scheduler
+        default_terminal.close()
 
-            default_terminal_scheduler = None
-            default_terminal = None
+        default_terminal_scheduler = None
+        default_terminal = None
 
 
 def _cleanup_default_terminal():
     if default_terminal:
-            default_terminal.close()
+        default_terminal.close()
 
 
 def _ensure_scheduler_exists(cmd):
     if not default_terminal_scheduler:
         try:
             global default_terminal_scheduler
-            default_terminal_scheduler = csssi.detect_scheduler(default_terminal)
-        except csssi.NoSchedulerFoundError:
-            raise errors.CommandFailedError(
-                cmd, 'Unable to detect the scheduling system type on this machine.'
+            default_terminal_scheduler = csssi.detect_scheduler(
+                default_terminal
             )
+        except csssi.NoSchedulerFoundError:
+            if not cmd:
+                return False
+            raise errors.CommandFailedError(
+                cmd,
+                'Unable to detect the scheduling system type on this machine.'
+            )
+    return True
+
+
+def job_complete(args):
+    if len(args) > 1:
+        return []
+    _establish_default_terminal()
+    if not _ensure_scheduler_exists(None):
+        return []
+    return ['auto'] + csssi.ls_user_jobs(default_terminal)
 
 
 def job(args):
@@ -82,8 +98,7 @@ def job(args):
         pid_dict = csssi.ls_job_pids(default_terminal, job_id, app)
     except csssi.InvalidJobError:
         raise errors.CommandFailedError(
-            'job',
-            '{0} does not seem to be a valid job id'.format(job_id)
+            'job', '{0} does not seem to be a valid job id'.format(job_id)
         )
     except csssi.NoRunningAppFoundError:
         raise errors.CommandFailedError(
@@ -108,8 +123,7 @@ def list_jobs(args):
     _establish_default_terminal()
     _ensure_scheduler_exists('jobs')
     items = csssi.ls_user_jobs(default_terminal)
-    jobs_str = ('\n    ' + '\n    '.join(items)
-                ) if items else '\r\n    None'
+    jobs_str = ('\n    ' + '\n    '.join(items)) if items else '\r\n    None'
     return modes.offline, 'Current jobs:' + jobs_str
 
 
@@ -249,10 +263,10 @@ def add_hop(args):
     return modes.offline, None
 
 
-def pop_hop(args):
+def unhop(args):
     # Verify command syntax
     if len(args) > 1:
-        raise errors.BadArgsError('pop', 'pop[ <number of hops to remove>].')
+        raise errors.BadArgsError('unhop', 'unhop[ <number of hops to remove>].')
 
     n_hops_to_remove = 1
     if len(args) == 1:
@@ -260,14 +274,14 @@ def pop_hop(args):
             n_hops_to_remove = int(args[0])
         except ValueError:
             raise errors.BadArgsError(
-                'pop', 'pop[ <number of hops to remove>].'
+                'unhop', 'unhop[ <number of hops to remove>].'
             )
     try:
         for _ in range(n_hops_to_remove):
             hops.rm()
     except console.NoHopsError:
         raise errors.CommandFailedError(
-            'pop', 'No more hops currently exist. Nothing can be removed'
+            'unhop', 'No more hops currently exist. Nothing can be removed'
         )
 
     _establish_default_terminal(reestablish = True)
@@ -279,7 +293,7 @@ def list_hops(args):
     # Verify command syntax
     if len(args) > 0:
         raise errors.BadArgsError(
-            'pop', 'This command does not accept arguments.'
+            'unhop', 'This command does not accept arguments.'
         )
 
     items = hops.ls()
@@ -295,24 +309,30 @@ def debug(args):
 
 
 commands = {
-    'hop': add_hop,
-    'pop': pop_hop,
-    'hops': list_hops,
-    'job': job,
-    'jobs': list_jobs,
-    'attach': attach,
-    'debug': debug, # HACK: For debugging only
-    'quit': quit,
+    'hop': (add_hop, None),
+    'unhop': (unhop, None),
+    'hops': (list_hops, None),
+    'job': (job, job_complete),
+    'jobs': (list_jobs, None),
+    'attach': (attach, None),
+    'debug': (debug, None), # HACK: For debugging only
+    'quit': (quit, None),
 }
 
 
 def process(cmd, args):
     if cmd in commands:
-        return commands[cmd](args)
+        return commands[cmd][0](args)
     raise errors.UnknownCommandError(cmd)
 
 
-class OfflineSessionCommandCompleter(object):
-    pass
+class OfflineSessionCommandCompleter(CommandCompleter):
+
+    def _complete_command(self):
+        return commands.keys()
+
+    def _complete_command_arguments(self, cmd, args):
+        if commands.has_key(cmd) and commands[cmd][1]:
+            return commands[cmd][1](args)
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

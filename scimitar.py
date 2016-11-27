@@ -16,7 +16,7 @@ import time
 import thread
 import threading
 
-from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, cleanup_terminal, history
+from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, cleanup_terminal, init_terminal, register_completer
 from __ver__ import VERSION
 from sessions import modes, offline_session, debug_session
 import config
@@ -52,7 +52,7 @@ Be licensed under Boost Software License, Version 1.0
 <http://www.boost.org/LICENSE_1_0.txt>
 'tis be free software; ye be free to change 'n redistribute it. Thar be NO
 warranty; not even for MERCHANTABILITY or FITNESS FER A PARTICULAR PURPOSE.
-'''.format(get_version_result=VERSION.rjust(20))
+'''.format(get_version_result = VERSION.rjust(20))
 
 
 # HACK: Test async output printing
@@ -67,6 +67,12 @@ def noise():
 # Dispatch the command and its arguments to the appropriate mode's processor
 
 
+completer_switcher = {
+    modes.offline: offline_session.OfflineSessionCommandCompleter().complete,
+    modes.debugging: debug_session.DebugSessionCommandCompleter().complete,
+    modes.quit: None,
+}
+
 command_handler_switcher = {
     modes.offline: offline_session.process,
     modes.debugging: debug_session.process,
@@ -77,26 +83,31 @@ def main():
     try:
         # NOTE: Multiple SIGKILLs required to force close.
         raw_input_async.last_kill_sig = None
-        
+
         # Clear the terminal
         vt100.terminal.reset()
+
         # Ahoy
         print_out(BANNER)
-        
+
         # Initial session mode
-        state = modes.offline
-        
-        # Init readline
-        history.load_history()
-        
+        current_mode = modes.offline
+
+        # Init terminal
+        init_terminal()
+        register_completer(completer_switcher[current_mode])
+
         # Async output printing
         thread.start_new_thread(noise, ())
-        
+
         prompts_list = config.settings['ui']['prompts']
-        get_prompt = lambda: { modes.offline: prompts_list[0], modes.debugging: prompts_list[1] }[state]
-        
+        get_prompt = lambda: {
+            modes.offline: prompts_list[0],
+            modes.debugging: prompts_list[1]
+        }[current_mode]
+
         # Main loop
-        while state != modes.quit:
+        while current_mode != modes.quit:
             vt100.unlock_keyboard()
             # FIXME: raw_input_async still is a blocking call. Have found no way to
             # avoid it. Reason: readline initiates a system call that I have no
@@ -106,7 +117,7 @@ def main():
             #vt100.lock_keyboard()
             ## HACK: Display the user's input
             #print_out(user_input.encode('string_escape') if user_input else '')
-        
+
             # An empty string is a valid empty
             # If the input was a control signal split might just remove it
             packed_input = user_input if user_input else key_seq
@@ -114,15 +125,18 @@ def main():
                 continue
             cmd, args = packed_input[0], packed_input[1:]
             # Run the appropriate mode's processing function
-            cmd_processor_fn = command_handler_switcher.get(state)
-        
+            cmd_processor_fn = command_handler_switcher.get(current_mode)
+
             try:
-                state, update_msg = cmd_processor_fn(cmd, args)
+                current_mode, update_msg = cmd_processor_fn(cmd, args)
+                register_completer(completer_switcher[current_mode])
+
                 if update_msg:
                     print_out(update_msg)
             except errors.UnknownCommandError as e:
                 print_error(
-                    'Unknown command: {u1}{cmd}{u0}', cmd = repr_str(e.expression)
+                    'Unknown command: {u1}{cmd}{u0}',
+                    cmd = repr_str(e.expression)
                 )
             except errors.BadArgsError as e:
                 print_error(
