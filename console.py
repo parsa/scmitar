@@ -20,6 +20,16 @@ all_sessions = []
 newest_session_id = -1
 
 
+class SessionsAliveError(errors.ScimitarError):
+    "Raised when attempting to modify hops while there are active sessions."
+    pass
+
+
+class NoHopsError(errors.ScimitarError):
+    "Rased when there are no more hops to remove."
+    pass
+
+
 def get_oldest_session():
     if all_sessions:
         return all_sessions[0]
@@ -42,15 +52,21 @@ def list_sessions():
 
 def add_hop(hop):
     if len(all_sessions) > 0:
-        raise errors.CommandFailedError('Cannot add a hop while connections alive.')
+        raise errors.CommandFailedError(
+            'Cannot add a hop while connections alive.'
+        )
     hops.append(hop)
 
 
 def pop_hop():
     if len(all_sessions) > 0:
-        raise errors.CommandFailedError('pop', 'Cannot add a hop while connections alive.')
+        raise errors.CommandFailedError(
+            'pop', 'Cannot add a hop while connections alive.'
+        )
     if len(hops) == 0:
-        raise errors.CommandFailedError('pop', 'No hops currently exist. Nothing can be removed')
+        raise errors.CommandFailedError(
+            'pop', 'No hops currently exist. Nothing can be removed'
+        )
     return hops.pop()
 
 
@@ -64,8 +80,14 @@ class Terminal(object):
     ps1_export_cmd = r"export PS1='SCIMITAR_PS\n$ '"
     ps1_re = r'SCIMITAR_PS\s+\$ '
 
-
-    def __init__(self, target_host=None, meta=None, tag=None, exit_re=None, prompt_re=None):
+    def __init__(
+        self,
+        target_host = None,
+        meta = None,
+        tag = None,
+        exit_re = None,
+        prompt_re = None
+    ):
         self.con = None
         self.target_host = target_host
 
@@ -76,10 +98,8 @@ class Terminal(object):
         self.exit_re = exit_re
         self.prompt_re = prompt_re
 
-
     def __enter__(self):
         return self.connect()
-
 
     def connect(self):
         global newest_session_id
@@ -87,11 +107,11 @@ class Terminal(object):
         self.con = pexpect.spawn('/usr/bin/env bash')
 
         for hop in hops:
-            self.con.sendline('ssh -tt {host}'.format(host=hop))
+            self.con.sendline('ssh -tt {host}'.format(host = hop))
             self.hostname = hop
 
         if self.target_host:
-            self.con.sendline('ssh -tt {host}'.format(host=self.target_host))
+            self.con.sendline('ssh -tt {host}'.format(host = self.target_host))
             self.hostname = self.target_host
 
         self.con.sendline(self.ps1_export_cmd)
@@ -102,10 +122,8 @@ class Terminal(object):
 
         return self
 
-
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-
 
     def close(self):
         try:
@@ -118,13 +136,12 @@ class Terminal(object):
 
         all_sessions.remove(self)
 
-
     def query(self, cmd):
         if not self.con.isalive():
             raise errors.DeadConsoleError
         self.con.sendline(cmd)
         try:
-            p_re = [ self.ps1_re ]
+            p_re = [self.ps1_re]
             if self.exit_re:
                 p_re.insert(0, self.exit_re)
             if self.prompt_re:
@@ -145,12 +162,17 @@ class Terminal(object):
             raise errors.ConsoleSessionError
         raise errors.UnexpectedResponseError
 
-
     def test_query(self, cmd):
-        if re.match('^.*aye[\r\n]*$', self.query('{cmd} >/dev/null 2>&1 && echo aye || echo nay'.format(cmd=cmd)), re.DOTALL):
+        if re.match(
+            '^.*aye[\r\n]*$',
+            self.query(
+                '{cmd} >/dev/null 2>&1 && echo aye || echo nay'.
+                format(cmd = cmd)
+            ),
+            re.DOTALL
+        ):
             return True
         return False
-
 
     def is_pid_alive(self, process_id):
         """Checks if a PID is still valid
@@ -159,14 +181,16 @@ class Terminal(object):
         :returns: bool
 
         """
-        return self.test_query('ps -p {pid}'.format(pid=process_id), re.DOTALL)
-
+        return self.test_query(
+            'ps -p {pid}'.format(pid = process_id), re.DOTALL
+        )
 
     def is_alive(self):
         return self.con.isalive()
 
-
     def __repr__(self):
-        return '<Terminal {0} @{1}:{2}>'.format(self.tag, self.hostname, self.meta)
+        return '<Terminal {0} @{1}:{2}>'.format(
+            self.tag, self.hostname, self.meta
+        )
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

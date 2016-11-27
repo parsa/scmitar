@@ -17,9 +17,10 @@ history_file_path = os.path.join(os.path.expanduser('~'), '.scimitar_history')
 
 
 def load_history():
+    readline.set_history_length(10000)
     try:
-        readline.set_history_length(10000)
-        readline.read_history_file(history_file_path)
+        if os.path.exists(history_file_path):
+            readline.read_history_file(history_file_path)
     except IOError:
         pass
 
@@ -30,6 +31,5 @@ def save_history():
         readline.write_history_file(history_file_path)
     except IOError:
         pass
-
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

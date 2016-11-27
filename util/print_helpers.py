@@ -13,8 +13,6 @@ from sys import stdout
 import signal
 import readline
 from itertools import chain
-
-import history
 from . import vt100 as v
 
 FORMAT_CONSTS = {'u1': v.format._underline_on, 'u0': v.format._underline_off}
@@ -118,12 +116,5 @@ def repr_str(string):
 def stream_writeline(msg, stream):
     stream.write(msg)
     stream.flush()
-
-
-def cleanup_terminal():
-    # Clean up the terminal before letting go
-    history.save_history()
-    v.unlock_keyboard()
-    v.format.clear_all_chars_attrs()
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

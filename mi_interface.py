@@ -11,9 +11,13 @@
 #
 import re
 
-_result_pattern = re.compile(r'\^(?:(done)(?:,([^\r\n]+))?|(running)|(connected)|(error),msg="((?:\\.|[^"\\])+)"(?:,code="((?:\\.|[^"\\])+))?|(exit))')
+_result_pattern = re.compile(
+    r'\^(?:(done)(?:,([^\r\n]+))?|(running)|(connected)|(error),msg="((?:\\.|[^"\\])+)"(?:,code="((?:\\.|[^"\\])+))?|(exit))'
+)
 _stream_pattern = re.compile(r'([~@&])"((?:\\.|[^\"\\])+)"')
+
 #_async_pattern = re.compile(r'')
+
 
 def _safe_unescape(msg):
     if type(msg) is str:
@@ -31,17 +35,22 @@ def parse(output_records):
     result_records = re.findall(_result_pattern, output_records)
     stream_records = re.findall(_stream_pattern, output_records)
 
-
     result_indicator = None
     if result_records:
         result_record = result_records[0]
-        result_indicator_regex = result_record[0] or result_record[2] or result_record[3] or result_record[4] or result_record[7]
+        result_indicator_regex = next((
+            result_record[index] for index in (0, 2, 3, 4, 7)
+            if result_record[index]
+        ), None)
 
         result_indicator = {
             'done': (indicator_done, _safe_unescape(result_record[1])),
             'running': (indicator_running, ),
             'connected': (indicator_connected, ),
-            'error': (indicator_error, _safe_unescape(result_record[5]), _safe_unescape(result_record[6])),
+            'error': (
+                indicator_error, _safe_unescape(result_record[5]),
+                _safe_unescape(result_record[6])
+            ),
             'exit': (indicator_exit, ),
         }[result_indicator_regex]
 
@@ -62,12 +71,20 @@ def parse(output_records):
 
 class indicator_done:
     pass
+
+
 class indicator_running:
     pass
+
+
 class indicator_connected:
     pass
+
+
 class indicator_error:
     pass
+
+
 class indicator_exit:
     pass
 

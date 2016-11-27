@@ -11,18 +11,17 @@
 #
 
 settings = {
-    'ui':
-    {
-        'prompts':
-            [
-                '# ', # Level 0: Offline mode
-                '$ ', # Level 1: Debugging mode
-            ],
+    'ui': {
+        'prompts': [
+            '# ', # Level 0: Offline mode
+            '$ ', # Level 1: Debugging mode
+        ],
     },
-    'signals':
-    {
-        'sigkill'     : 5,
-        'sigkill_last': 1,
+    'signals': {
+        'sigkill':
+            5,
+        'sigkill_last':
+            1,
         # TODO: See if we need to handle the other signals. These maybe:
         ## EOF
         ## SIGALRM
@@ -31,18 +30,17 @@ settings = {
         ## SIGTERM
         ## SIGSTOP
     },
-    'gdb':
-    {
+    'gdb': {
         # GDB command line
         # Supress banner, interactive mode
-        'cmd'   :
-            [
-                'gdb',
-                '-interpreter=mi2', # Use GDB/MI2 interface
-                '-quiet',           # Suppress banner
-                '--nx',             # Don't load any .gdbinits whatsoever
-            ],
-        'attach': '--pid={pid}',
+        'cmd': [
+            'gdb',
+            '-interpreter=mi2', # Use GDB/MI2 interface
+            '-quiet', # Suppress banner
+            '--nx', # Don't load any .gdbinits whatsoever
+        ],
+        'attach':
+            '--pid={pid}',
     },
 }
 

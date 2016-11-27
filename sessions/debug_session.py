@@ -15,7 +15,6 @@ import modes
 import console
 import mi_interface
 
-
 session_dict = None
 current_session_tag = None
 
@@ -41,9 +40,13 @@ def _ls_out():
             ls_head = s_i.tag
         else:
             ls_head = '(*) ' + s_i.tag
-        ls_out.append('%6s) %s:%d' % (ls_head, s_i.hostname, s_i.meta,))
+        ls_out.append('%6s) %s:%d' % (
+            ls_head,
+            s_i.hostname,
+            s_i.meta,
+        ))
     return '\n'.join(ls_out)
-    
+
 
 def ls(args):
     return modes.debugging, 'Sessions:\n' + _ls_out()
@@ -61,7 +64,9 @@ def switch(args):
 
     global current_session_tag
     current_session_tag = id
-    return modes.debugging, 'Switch to session #%s\n%s' % (current_session_tag, _ls_out())
+    return modes.debugging, 'Switch to session #%s\n%s' % (
+        current_session_tag, _ls_out()
+    )
 
 
 def _kill_all():
@@ -85,7 +90,7 @@ def quit(args):
 def gdb_exec(cmd):
     if not session_dict.has_key(current_session_tag):
         raise errors.BadArgsError('gdb_exec', 'This session is dead.')
-        
+
     cs = session_dict[current_session_tag]
     gdb_response = cs.query(' '.join(cmd))
     if gdb_response in (r'^exit', r'^kill'):
@@ -115,9 +120,12 @@ commands = {
     'quit': quit,
 }
 
+
 def process(cmd, args):
     if not current_session_tag:
-        raise errors.CommandFailedError('Unable to find the current session. Debugger start failed. (Maybe init_session_dict was not called?)')
+        raise errors.CommandFailedError(
+            'Unable to find the current session. Debugger start failed. (Maybe init_session_dict was not called?)'
+        )
     if cmd in commands:
         return commands[cmd](args)
     else:

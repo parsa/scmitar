@@ -16,6 +16,7 @@ import readline
 import re
 import select
 import print_helpers
+import history
 
 from . import signals
 from . import vt100 as v
@@ -99,8 +100,8 @@ def raw_input_async(prompt = '', timeout = 5):
                 if raw_input_async.kill_sigs >= signals_config['sigkill'] - 1:
                     print_helpers.print_out(
                         '\rGot too many {u1}<C-c>{u0}s. ABAAAAAAANDON SHIP!'
-                        )
-                    print_helpers.cleanup_terminal()
+                    )
+                    cleanup_terminal()
                     exit(0)
             else:
                 raw_input_async.kill_sigs = 0
@@ -118,5 +119,16 @@ def raw_input_async(prompt = '', timeout = 5):
         #signal.signal(signal.SIGALRM, signal.SIG_IGN)
     # We should never reach here
     return None, None
+
+
+def init_terminal():
+    readline.parse_and_bind('tab: complete')
+
+
+def cleanup_terminal():
+    # Clean up the terminal before letting go
+    history.save_history()
+    v.unlock_keyboard()
+    v.format.clear_all_chars_attrs()
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:
