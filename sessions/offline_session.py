@@ -74,7 +74,7 @@ def job_complete(args):
 def job(args):
     # Verify command syntax
     if len(args) > 2:
-        raise errors.BadArgsError('job', 'job[ <job_id | auto>[ <app>]]')
+        raise errors.BadArgsError('job', 'job[ <job_id> | <auto>[ <app>]]')
 
     pid_dict = None
 
