@@ -42,11 +42,6 @@ def _establish_default_terminal(reestablish = False):
         default_terminal = None
 
 
-def _cleanup_default_terminal():
-    if default_terminal:
-        default_terminal.close()
-
-
 def _ensure_scheduler_exists(cmd):
     if not default_terminal_scheduler:
         try:
@@ -87,7 +82,7 @@ def job(args):
     # Basic checks
     _establish_default_terminal()
     _ensure_scheduler_exists('job')
-    
+
     # If job name is not provided then probably only one job is active
     if len(args) == 0 or args[0] == 'auto':
         try:
@@ -146,33 +141,6 @@ def list_jobs(args):
     items = csssi.ls_user_jobs(default_terminal)
     jobs_str = '\t'.join(items)
     return modes.offline, jobs_str
-
-
-def _find_dead_pids_host(host, pids):
-    dead_pids = []
-
-    _establish_default_terminal()
-    _ensure_scheduler_exists('jobs')
-    for pid in pids:
-        if not default_terminal.is_pid_alive(pid):
-            host_path = '.'.join(hops.list_hops())
-            if host:
-                host_path += '.' + host
-            dead_pids.append(
-                '{host}:{pid}'.format(
-                    host = host_path or 'localhost', pid = pid
-                )
-            )
-    return dead_pids
-
-
-def _find_dead_pids(pid_dict):
-    # Check the status of all provided PIDs
-    dead_pids = []
-    for host, pids in pid_dict.iteriterms():
-        # Establish a connection per each process
-        dead_pids.extend(_find_dead_pids_host(host, pids))
-    return dead_pids
 
 
 class _AttachPidThread(threading.Thread):
@@ -260,19 +228,44 @@ def _attach_pids(pid_dict):
     return mgr, msgs
 
 
-def _parse_group_pids(expr):
-    pid_dict = {}
-    for app_instance in re.finditer('((?:(\w+):)?(\d+))', expr):
-        host = app_instance.group(2)
-        pid = int(app_instance.group(3))
-
-        if pid_dict.has_key(host):
-            pid_dict[host] += [pid]
-        else:
-            pid_dict[host] = [pid]
-
-
 def attach(args):
+
+    def _find_dead_pids_host(host, pids):
+        dead_pids = []
+
+        _establish_default_terminal()
+        _ensure_scheduler_exists('jobs')
+        for pid in pids:
+            if not default_terminal.is_pid_alive(pid):
+                host_path = '.'.join(hops.list_hops())
+                if host:
+                    host_path += '.' + host
+                dead_pids.append(
+                    '{host}:{pid}'.format(
+                        host = host_path or 'localhost', pid = pid
+                    )
+                )
+        return dead_pids
+
+    def _find_dead_pids(pid_dict):
+        # Check the status of all provided PIDs
+        dead_pids = []
+        for host, pids in pid_dict.iteriterms():
+            # Establish a connection per each process
+            dead_pids.extend(_find_dead_pids_host(host, pids))
+        return dead_pids
+
+    def _parse_group_pids(expr):
+        pid_dict = {}
+        for app_instance in re.finditer('((?:(\w+):)?(\d+))', expr):
+            host = app_instance.group(2)
+            pid = int(app_instance.group(3))
+
+            if pid_dict.has_key(host):
+                pid_dict[host] += [pid]
+            else:
+                pid_dict[host] = [pid]
+
     args_string = ' '.join(args)
     # Verify command syntax
     if len(args) < 1 or not re.match('(?:(?:\w+:)?\d+|\s)+', args_string):
@@ -301,6 +294,11 @@ def attach(args):
 
 
 def quit(args):
+
+    def _cleanup_default_terminal():
+        if default_terminal:
+            default_terminal.close()
+
     _cleanup_default_terminal()
     return modes.quit, None
 

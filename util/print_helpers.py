@@ -23,6 +23,23 @@ def merge_dicts(dict_a, dict_b):
     return dict(chain(dict_a.items(), dict_b.items()))
 
 
+def _format_color(expr, color, *args, **kwargs):
+    t = v.format._clear_all_chars_attrs + v.format._alternate_intesity_on + color + expr + v.format._clear_all_chars_attrs
+    return t.format(*args, **merge_dicts(kwargs, FORMAT_CONSTS))
+
+
+def format_error(expr, *args, **kwargs):
+    return _format_color(expr, v.format._fg_red, *args, **merge_dicts(kwargs, FORMAT_CONSTS))
+
+
+def format_warning(expr, *args, **kwargs):
+    return _format_color(expr, v.format._fg_yellow, *args, **merge_dicts(kwargs, FORMAT_CONSTS))
+
+
+def format_info(expr, *args, **kwargs):
+    return _format_color(expr, v.format._fg_blue, *args, **merge_dicts(kwargs, FORMAT_CONSTS))
+
+
 def print_out(expr, ending = '\n', *args, **kwargs):
     '''Standard print() function in Scimitar'''
     stdout.write(

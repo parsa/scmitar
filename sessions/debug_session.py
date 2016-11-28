@@ -19,6 +19,7 @@ import console
 import mi_interface as mi
 from config import settings
 from command_completer import CommandCompleter
+from util import format_error, format_warning, format_info, repr_str_dict
 
 session_manager = None
 selected_sessions = None
@@ -201,74 +202,95 @@ class RemoteCommandExecutingThread(threading.Thread):
 
 
 def gdb_exec(cmd):
-    # Ensure there are selected sessions
-    if not selected_sessions:
-        raise errors.CommandFailedError(
-            'gdb:cmd(?)',
-            'No session(s) selected. Debugging mode failed to start. (Maybe init_debugging_mode() was not called?)'
-        )
 
+    def _ensure_sessions_selected():
+        if not selected_sessions:
+            raise errors.CommandFailedError(
+                'gdb:cmd(?)',
+                'No session(s) selected. Debugging mode failed to start. (Maybe init_debugging_mode() was not called?)'
+            )
+
+    def _ensure_valid_sessions_selected():
+        non_existing_sessions = [
+            id for id in selected_sessions if not session_manager.exists(id)
+        ]
+        if non_existing_sessions:
+            raise errors.BadArgsError(
+                'gdb:cmd(?)', 'Cannot proceed. Dead session(s): {0}.'.
+                format(', '.format(non_existing_sessions))
+            )
+
+    def _sanitize_gdb_command(cmd):
+        if cmd and not repr_str_dict.has_key(cmd[0]):
+            return ['-interpreter-exec', 'console'] + cmd
+        return cmd
+
+    def _parallel_exec_async(cmd, tag, target_sessions):
+        tasks = {}
+        for tag in target_sessions:
+            # Get the session
+            cs = session_manager.get(tag)
+            exctr = RemoteCommandExecutingThread(cs, ' '.join(cmd))
+            exctr.start()
+            tasks[tag] = exctr
+        return tasks
+
+    def _collect_exec_results(tasks):
+        # If sessions died during execution collect them
+        session_casualties = []
+        # Results
+        results = []
+
+        # Go through the results
+        for tag, task in tasks.iteritems():
+            task.join()
+            try:
+                mi_response = task.report()
+                # Add it to message history stash
+                sessions_history[tag].append(mi_response)
+                # Output header
+                results.append('~~~ Scimitar - Session: {} ~~~'.format(tag))
+                ind_rec, cout, tout, lout = sessions_history[tag][-1]
+                # Check the type of indicator we got
+                if ind_rec[0] == mi.indicator_error:
+                    results.append(format_error(ind_rec[1]))
+                elif ind_rec[0] == mi.indicator_exit:
+                    session_manager.remove(tag)
+                    results.append(format_error('Session {} died.', tag))
+                else:
+                    results.append(cout)
+            except console.SessionDiedError:
+                # It is not a session we can work with in future
+                session_manager.remove(tag)
+                selected_sessions.remove(tag)
+                # Add this session to killed sessions
+                session_casualties += [tag]
+        return results, session_casualties
+
+    #
+    # gdb_exec starts here
+    #
+
+    # Ensure there are selected sessions
+    _ensure_sessions_selected()
     # Make sure selected sessions are valid
-    non_existing_sessions = [
-        id for id in selected_sessions if not session_manager.exists(id)
-    ]
-    if non_existing_sessions:
-        raise errors.BadArgsError(
-            'gdb:cmd(?)', 'Cannot proceed. Dead session(s): {0}.'.
-            format(', '.format(non_existing_sessions))
-        )
+    _ensure_valid_sessions_selected()
 
     # GDB launch command
-    msg = ['-interpreter-exec', 'console'] + cmd
-
-    # If sessions died during execution collect them
-    sessions_killed = []
-
-    # Results
-    results = []
+    cmd = _sanitize_gdb_command(cmd)
 
     # Threads that run the command
-    tasks = {}
+    tasks = _parallel_exec_async(cmd, tag, selected_sessions)
 
-    # Run the user's command
-    for tag in selected_sessions:
-        # Get the session
-        cs = session_manager.get(tag)
-        exctr = RemoteCommandExecutingThread(cs, ' '.join(msg))
-        exctr.start()
-        tasks[tag] = exctr
-
-    for tag, task in tasks.iteritems():
-        task.join()
-        try:
-            mi_response = task.report()
-        except console.SessionDiedError:
-            # It is not a session we can work with in future
-            session_manager.remove(tag)
-            # Add this session to killed sessions
-            sessions_killed += [tag]
-        # Add it to message history stash
-        sessions_history[tag].append(mi_response)
-
-    for tag in tasks.iterkeys():
-        # Output header
-        results.append('~~~ Scimitar - Session: {} ~~~'.format(tag))
-        ind_rec, cout, tout, lout = sessions_history[tag][-1]
-        # Check the type of indicator we got
-        if ind_rec[0] == mi.indicator_error:
-            raise errors.CommandFailedError('gdb:cmd(?)', ind_rec[1])
-        elif ind_rec[0] == mi.indicator_exit:
-            session_manager.remove(tag)
-            raise errors.CommandFailedError(
-                'gdb:cmd(?)', 'Session {} died.'.format(tag)
-            )
-        results.append(cout)
+    # Wait for all commands to finish
+    session_casualties, results = _collect_exec_results(tasks)
 
     # In case we had dead sessions the command has essentially failed.
-    if sessions_killed:
-        raise errors.CommandFailedError(
-            'gdb:cmd(?)'.format(cmd),
-            'Session(s) {} died.'.format(', '.join(sessions_killed))
+    if session_casualties:
+        results.append(
+            format_error(
+                'Session(s) {} died.', ', '.join(session_casualties)
+            )
         )
     return modes.debugging, '\n'.join(results)
 
