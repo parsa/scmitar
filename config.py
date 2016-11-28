@@ -42,6 +42,9 @@ settings = {
         'attach':
             '--pid={pid}',
     },
+    'sessions': {
+        'history_length': 100
+    },
 }
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

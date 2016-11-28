@@ -66,6 +66,8 @@ class CommandCompleter(object):
             return self.matches[state]
         except IndexError:
             pass
+        #except Exception as e:
+        #    print 'Error: {0}'.format(repr(e))
         return None
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

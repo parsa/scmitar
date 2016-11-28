@@ -55,6 +55,9 @@ class NoRunningAppFoundError(errors.ScimitarError):
 
 
 def which_scheduler(term):
+    '''Tries to determine if the target system has a batch scheduling system we
+    can work with.
+    '''
     if term.test_query('type squeue'):
         return slurm_type
     if term.test_query('type qstat'):
@@ -63,29 +66,41 @@ def which_scheduler(term):
 
 
 def detect_scheduler(term):
+    '''Makes sure the target system does have a scheduler we can work with.'''
     global scheduler
+    # Choose the right scheduler module
     scheduler = {
         slurm_type: slurm,
         pbs_type: pbs,
         None: None,
     }[which_scheduler(term)]
+    # This test fails if there is no scheduler
     if not scheduler:
         raise NoSchedulerFoundError
     return scheduler
 
 
 def ls_user_jobs(term):
+    '''List this user's jobs
+    '''
+    # Basic checks
     if not scheduler:
         raise NoSchedulerFoundError
     return scheduler.ls_user_jobs(term)
 
 
 def detect_active_job(term):
+    '''Tries to find the only active job.
+    '''
+    # Basic checks
     if not scheduler:
         raise NoSchedulerFoundError
+    # Get job information
     user_jobs = ls_user_jobs(term)
+    # There is more than one job
     if len(user_jobs) > 1:
         raise MoreThanOneActiveJobError
+    # Return the only active job, fail if there is none
     try:
         return next(iter(user_jobs or []))
     except StopIteration:
@@ -93,11 +108,14 @@ def detect_active_job(term):
 
 
 def ls_job_pids(term, job_id, job_app = None):
+    '''Return the hosts in this job along with PIDs of job_app on each host
+    '''
     job_nodes = scheduler.ls_job_nodes(term, job_id)
 
     if len(job_nodes) == 0:
         raise InvalidJobError
 
+    # See if we can determine the app if none is provided
     if not job_app:
         node_0 = job_nodes[0]
         try:
@@ -105,6 +123,7 @@ def ls_job_pids(term, job_id, job_app = None):
         except (IndexError, AttributeError):
             raise NoRunningAppFoundError
 
+    # Query each host for job_app
     pid_dict = {}
     for node in job_nodes:
         pids = scheduler.ls_pids(term, node, job_app)

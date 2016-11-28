@@ -15,7 +15,7 @@ import errors
 import pexpect
 
 
-class SessionsAliveError(errors.ScimitarError):
+class SessionDiedError(errors.ScimitarError):
     "Raised when attempting to modify hops while there are active sessions."
     pass
 
@@ -35,10 +35,10 @@ class HopManager(object):
             self._hops = []
         self._hops.append(hop)
 
-    def ls(self):
+    def list_hops(self):
         return self._hops or []
 
-    def rm(self):
+    def remove_last(self):
         if not self._hops:
             raise NoHopsError
         return self._hops.pop()
@@ -60,16 +60,17 @@ class SessionManager(object):
         self._order.append(session)
         self._session_dict[session.tag] = session
 
-    def rm(self, session_tag):
-        session = self._session_dict.pop(session_tag)
-        self._order.remove(session)
+    def remove(self, session_tags):
+        for tag in session_tags:
+            session = self._session_dict.pop(tag)
+            self._order.remove(session)
 
-    def ls_sessions(self):
+    def list_sessions(self):
         if not self._session_dict:
             return []
         return self._session_dict.values()
 
-    def ls(self):
+    def list_session_tags(self):
         if not self._session_dict:
             return []
         return self._session_dict.keys()

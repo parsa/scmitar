@@ -10,33 +10,49 @@
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
 
+from collections import deque
+import threading
+
 import errors
 import modes
 import console
-import mi_interface
+import mi_interface as mi
+from config import settings
 from command_completer import CommandCompleter
 
 session_manager = None
-current_session_tag = None
+selected_sessions = None
+sessions_history = None
+
+history_length = int(settings['sessions']['history_length'])
 
 
-def init_session_dict(mgr):
-    global current_session_tag
+def init_debugging_mode(mgr, msgs):
+    global selected_sessions
     global session_manager
+    global sessions_history
 
     session_manager = mgr
-    current_session_tag = mgr.get_oldest().tag
+    sessions_history = {}
+
+    oldest_session = mgr.get_oldest()
+    if oldest_session:
+        selected_sessions = [oldest_session.tag]
+
+    for tag in session_manager.list_session_tags():
+        sessions_history[tag] = deque(maxlen = history_length)
+        sessions_history[tag].append(msgs[tag])
 
     return modes.debugging, None
 
 
 def _ls_out():
     ls_out = []
-    for s_i in session_manager.ls_sessions():
-        if s_i.tag != current_session_tag:
+    for s_i in session_manager.list_sessions():
+        if not s_i.tag in selected_sessions:
             ls_head = s_i.tag
         else:
-            ls_head = '(*) ' + s_i.tag
+            ls_head = '(*) {}'.format(s_i.tag)
         ls_out.append('%6s) %s:%d' % (
             ls_head,
             s_i.hostname,
@@ -45,40 +61,79 @@ def _ls_out():
     return '\n'.join(ls_out)
 
 
-def ls(args):
+def list_sessions(args):
     # Verify command syntax
     if len(args) != 0:
-        raise errors.BadArgsError('ls', 'This command does not accept arguments')
+        raise errors.BadArgsError(
+            'ls', 'This command does not accept arguments'
+        )
 
-    return modes.debugging, 'Sessions:\n' + _ls_out()
+    pretty_session_list = _ls_out()
+    if not pretty_session_list:
+        return modes.debugging, 'ls: Empty. No sessions are alive.'
+    return modes.debugging, 'Sessions:\n' + pretty_session_list
 
 
-def switch_complete(args):
-    if len(args) > 1:
+def select_session_complete(args):
+    if not args:
+        return ['all', 'none'] + session_manager.list_session_tags()
+
+    # If 'all' then no further arguments are meaningful
+    if 'all' in args or 'none' in args:
         return []
-    result = [x.tag for x in session_manager.ls_sessions()]
-    return result
+
+    if 'all'.startswith(args[0]):
+        return ['all']
+
+    if 'none'.startswith(args[0]):
+        return ['none']
+
+    return [
+        tag for tag in session_manager.list_session_tags() if not tag in args
+    ]
 
 
-def switch(args):
+def select_session(args):
     # Verify command syntax
-    if len(args) != 1:
-        raise errors.BadArgsError('switch', 'switch <session_id>')
+    if not args:
+        raise errors.BadArgsError(
+            'select', 'select all | none | <session id>[ <session id>[ ...]]'
+        )
 
-    id = args[0]
+    if args:
+        if args[0] == 'all':
+            global selected_sessions
+            selected_sessions = sorted(session_manager.list_session_tags())
 
-    if not session_manager.exists(id):
-        raise errors.BadArgsError('switch', 'No such session exists.')
+            return modes.debugging, 'Selected session(s) #{0}\n{1}'.format(
+                ', '.join(selected_sessions), _ls_out()
+            )
+        elif args[0] == 'none':
+            global selected_sessions
+            selected_sessions = []
 
-    global current_session_tag
-    current_session_tag = id
-    return modes.debugging, 'Switch to session #%s\n%s' % (
-        current_session_tag, _ls_out()
+            return modes.debugging, 'No sessions selected'.format(
+                ', '.join(selected_sessions), _ls_out()
+            )
+
+    non_existing_sessions = [
+        id for id in args if not session_manager.exists(id)
+    ]
+    if non_existing_sessions:
+        raise errors.BadArgsError(
+            'select', 'Session(s) {0} do not exist.'.
+            format(', '.join(non_existing_sessions))
+        )
+
+    global selected_sessions
+    selected_sessions = args
+    return modes.debugging, 'Selected session(s) #{0}\n{1}'.format(
+        ', '.join(selected_sessions), _ls_out()
     )
 
 
 def _kill_all():
-    for s_i in session_manager.ls_sessions():
+    for s_i in session_manager.list_sessions():
         if s_i.is_alive():
             s_i.query('-gdb-exit')
     session_manager.kill_all()
@@ -87,10 +142,12 @@ def _kill_all():
     session_manager = None
 
 
-def end(args):
+def end_sessions(args):
     # Verify command syntax
     if len(args) != 0:
-        raise errors.BadArgsError('ls', 'This command does not accept arguments')
+        raise errors.BadArgsError(
+            'ls', 'This command does not accept arguments'
+        )
 
     _kill_all()
     return modes.offline, None
@@ -99,29 +156,121 @@ def end(args):
 def quit(args):
     # Verify command syntax
     if len(args) != 0:
-        raise errors.BadArgsError('ls', 'This command does not accept arguments')
+        raise errors.BadArgsError(
+            'ls', 'This command does not accept arguments'
+        )
 
     _kill_all()
     return modes.quit, None
 
 
+def message_history(args):
+    pass
+
+
+class RemoteCommandExecutingThread(threading.Thread):
+    '''This thread type is responsible for running commands on terminal
+    '''
+
+    def __init__(self, term, cmd):
+        super(RemoteCommandExecutingThread, self).__init__()
+        self.term = term
+        self.cmd = cmd
+        self.error = None
+        self.result = None
+
+    def run(self):
+        try:
+            self._run()
+        except Exception as e:
+            self.error = e
+
+    def _run(self):
+        # Send the command
+        gdb_response = self.term.query(self.cmd)
+        # In case GDB dies 
+        if gdb_response in (r'^exit', r'^kill'):
+            raise console.SessionDiedError
+        else:
+            self.result = mi.parse(gdb_response)
+
+    def report(self):
+        if self.error:
+            raise self.error
+        return self.result
+
+
 def gdb_exec(cmd):
-    if not session_manager.exists(current_session_tag):
-        raise errors.BadArgsError('gdb_exec', 'This session is dead.')
+    # Ensure there are selected sessions
+    if not selected_sessions:
+        raise errors.CommandFailedError(
+            'gdb:cmd(?)',
+            'No session(s) selected. Debugging mode failed to start. (Maybe init_debugging_mode() was not called?)'
+        )
 
-    cs = session_manager.get(current_session_tag)
-    gdb_response = cs.query(' '.join(cmd))
-    if gdb_response in (r'^exit', r'^kill'):
-        session_manager.rm(current_session_tag)
-        raise errors.CommandFailedError('gdb_exec', 'Session died.')
-    indrec, cout, tout, lout = mi_interface.parse(gdb_response)
+    # Make sure selected sessions are valid
+    non_existing_sessions = [
+        id for id in selected_sessions if not session_manager.exists(id)
+    ]
+    if non_existing_sessions:
+        raise errors.BadArgsError(
+            'gdb:cmd(?)', 'Cannot proceed. Dead session(s): {0}.'.
+            format(', '.format(non_existing_sessions))
+        )
 
-    if indrec[0] == mi_interface.indicator_error:
-        raise errors.CommandFailedError('gdb_exec', indrec[1])
-    elif indrec[0] == mi_interface.indicator_exit:
-        session_manager.rm(current_session_tag)
-        raise errors.CommandFailedError('gdb_exec', 'Session died.')
-    return modes.debugging, cout
+    # GDB launch command
+    msg = ['-interpreter-exec', 'console'] + cmd
+
+    # If sessions died during execution collect them
+    sessions_killed = []
+
+    # Results
+    results = []
+
+    # Threads that run the command
+    tasks = {}
+
+    # Run the user's command
+    for tag in selected_sessions:
+        # Get the session
+        cs = session_manager.get(tag)
+        exctr = RemoteCommandExecutingThread(cs, ' '.join(msg))
+        exctr.start()
+        tasks[tag] = exctr
+
+    for tag, task in tasks.iteritems():
+        task.join()
+        try:
+            mi_response = task.report()
+        except console.SessionDiedError:
+            # It is not a session we can work with in future
+            session_manager.remove(tag)
+            # Add this session to killed sessions
+            sessions_killed += [tag]
+        # Add it to message history stash
+        sessions_history[tag].append(mi_response)
+
+    for tag in tasks.iterkeys():
+        # Output header
+        results.append('~~~ Scimitar - Session: {} ~~~'.format(tag))
+        ind_rec, cout, tout, lout = sessions_history[tag][-1]
+        # Check the type of indicator we got
+        if ind_rec[0] == mi.indicator_error:
+            raise errors.CommandFailedError('gdb:cmd(?)', ind_rec[1])
+        elif ind_rec[0] == mi.indicator_exit:
+            session_manager.remove(tag)
+            raise errors.CommandFailedError(
+                'gdb:cmd(?)', 'Session {} died.'.format(tag)
+            )
+        results.append(cout)
+
+    # In case we had dead sessions the command has essentially failed.
+    if sessions_killed:
+        raise errors.CommandFailedError(
+            'gdb:cmd(?)'.format(cmd),
+            'Session(s) {} died.'.format(', '.join(sessions_killed))
+        )
+    return modes.debugging, '\n'.join(results)
 
 
 def debug(args):
@@ -131,19 +280,16 @@ def debug(args):
 
 
 commands = {
-    'ls': (ls, None),
-    'switch': (switch, switch_complete),
+    'ls': (list_sessions, None),
+    'select': (select_session, select_session_complete),
     'debug': (debug, None), # HACK: For debugging only
-    'end': (end, None),
+    'history': (message_history, None),
+    'end': (end_sessions, None),
     'quit': (quit, None),
 }
 
 
 def process(cmd, args):
-    if not current_session_tag:
-        raise errors.CommandFailedError(
-            'Unable to find the current session. Debugger start failed. (Maybe init_session_dict was not called?)'
-        )
     if cmd in commands:
         return commands[cmd][0](args)
     else:
