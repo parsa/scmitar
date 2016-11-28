@@ -63,6 +63,7 @@ def _ls_out():
 
 
 def list_sessions(args):
+    '''Lists all active sessions.'''
     # Verify command syntax
     if len(args) != 0:
         raise errors.BadArgsError(
@@ -76,10 +77,12 @@ def list_sessions(args):
 
 
 def select_session_complete(args):
+    '''readline library tab completion for session selection in debugging
+    mode'''
     if not args:
         return ['all', 'none'] + session_manager.list_session_tags()
 
-    # If 'all' then no further arguments are meaningful
+    # If 'all' or 'none' then no further arguments are meaningful
     if 'all' in args or 'none' in args:
         return []
 
@@ -95,6 +98,7 @@ def select_session_complete(args):
 
 
 def select_session(args):
+    '''Mark the provided sessions as selected'''
     # Verify command syntax
     if not args:
         raise errors.BadArgsError(
@@ -140,7 +144,9 @@ def _kill_all():
     session_manager.kill_all()
 
     global session_manager
+    global sessions_history
     session_manager = None
+    sessions_history = None
 
 
 def end_sessions(args):
@@ -155,6 +161,7 @@ def end_sessions(args):
 
 
 def quit(args):
+    '''Exit scimitar'''
     # Verify command syntax
     if len(args) != 0:
         raise errors.BadArgsError(
@@ -166,6 +173,7 @@ def quit(args):
 
 
 def _ensure_sessions_selected(cmd):
+    '''Verifies that there are sessions selected at this moment.'''
     if not selected_sessions:
         raise errors.CommandFailedError(
             cmd,
@@ -173,6 +181,7 @@ def _ensure_sessions_selected(cmd):
         )
 
 def _ensure_valid_sessions_selected(cmd):
+    '''Verifies if all selected sessions are still alive'''
     non_existing_sessions = [
         id for id in selected_sessions if not session_manager.exists(id)
     ]
@@ -183,6 +192,7 @@ def _ensure_valid_sessions_selected(cmd):
         )
 
 def message_history(args):
+    '''Prints the selected sessions' history records at index args[0]'''
     _ensure_sessions_selected('history')
 
     index = -1
@@ -211,6 +221,7 @@ def message_history(args):
                     results.append(format_error(ind_rec[1]))
                 elif ind_rec[0] == mi.indicator_exit:
                     session_manager.remove(tag)
+                    sessions_history.remove(tag)
                     results.append(format_error('Session {} died.', tag))
                 else:
                     results.append(cout)
@@ -222,10 +233,10 @@ def message_history(args):
 
 
 def gdb_exec(cmd):
+    '''Runs the provided user command cmd on all selected sessions.'''
 
     class RemoteCommandExecutingThread(threading.Thread):
-        '''This thread type is responsible for running commands on terminal
-        '''
+        '''This thread type is responsible for running commands on terminal'''
 
         def __init__(self, term, cmd):
             super(RemoteCommandExecutingThread, self).__init__()
@@ -235,6 +246,7 @@ def gdb_exec(cmd):
             self.result = None
 
         def run(self):
+            '''Start the execution'''
             try:
                 self._run()
             except Exception as e:
@@ -255,11 +267,15 @@ def gdb_exec(cmd):
             return self.result
 
     def _sanitize_gdb_command(cmd):
+        '''Explicitly tell GDB that this is not an MI command following. Tries to
+        differentiate between control signals and commands.'''
         if cmd and not repr_str_dict.has_key(cmd[0]):
             return ['-interpreter-exec', 'console'] + cmd
         return cmd
 
     def _parallel_exec_async(cmd, tag, target_sessions):
+        '''Start running the provided cmd per each target session in separate
+        thread '''
         tasks = {}
         for tag in target_sessions:
             # Get the session
@@ -270,6 +286,7 @@ def gdb_exec(cmd):
         return tasks
 
     def _collect_exec_results(tasks):
+        '''Wait until threads finish and then collect the results.'''
         # If sessions died during execution collect them
         session_casualties = []
         # Results
@@ -286,18 +303,24 @@ def gdb_exec(cmd):
                 results.append('~~~ Scimitar - Session: {} ~~~'.format(tag))
                 ind_rec, cout, tout, lout = mi_response
                 # Check the type of indicator
+                # Error
                 if ind_rec[0] == mi.indicator_error:
                     results.append(format_error(ind_rec[1]))
+                # Exit
                 elif ind_rec[0] == mi.indicator_exit:
                     session_manager.remove(tag)
+                    sessions_history.remove(tag)
                     results.append(format_error('Session {} died.', tag))
+                # Connected, Success, etc
                 else:
                     results.append(cout)
+            # When the session is dead
             except console.SessionDiedError:
                 # It is not a session we can work with in future
                 session_manager.remove(tag)
+                sessions_history.remove(tag)
                 selected_sessions.remove(tag)
-                # Add this session to killed sessions
+                # Add this session to casualty list
                 session_casualties += [tag]
         return results, session_casualties
 
