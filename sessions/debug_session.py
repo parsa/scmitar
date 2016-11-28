@@ -165,60 +165,94 @@ def quit(args):
     return modes.quit, None
 
 
+def _ensure_sessions_selected(cmd):
+    if not selected_sessions:
+        raise errors.CommandFailedError(
+            cmd,
+            'No session(s) selected. Debugging mode failed to start. (Maybe init_debugging_mode() was not called?)'
+        )
+
+def _ensure_valid_sessions_selected(cmd):
+    non_existing_sessions = [
+        id for id in selected_sessions if not session_manager.exists(id)
+    ]
+    if non_existing_sessions:
+        raise errors.BadArgsError(
+            cmd, 'Cannot proceed. Dead session(s): {0}.'.
+            format(', '.format(non_existing_sessions))
+        )
+
 def message_history(args):
-    pass
+    _ensure_sessions_selected('history')
 
-
-class RemoteCommandExecutingThread(threading.Thread):
-    '''This thread type is responsible for running commands on terminal
-    '''
-
-    def __init__(self, term, cmd):
-        super(RemoteCommandExecutingThread, self).__init__()
-        self.term = term
-        self.cmd = cmd
-        self.error = None
-        self.result = None
-
-    def run(self):
+    index = -1
+    if len(args) == 1:
         try:
-            self._run()
-        except Exception as e:
-            self.error = e
+            index = -int(args[0])
+        except ValueError:
+            raise errors.BadArgsError(
+                'history', 'history[ <index>]'
+            )
 
-    def _run(self):
-        # Send the command
-        gdb_response = self.term.query(self.cmd)
-        # In case GDB dies 
-        if gdb_response in (r'^exit', r'^kill'):
-            raise console.SessionDiedError
-        else:
-            self.result = mi.parse(gdb_response)
+    if index > history_length:
+        raise errors.BadArgsError(
+            'history', 'Selected record does not exist in the history'
+        )
 
-    def report(self):
-        if self.error:
-            raise self.error
-        return self.result
+    results = []
+    for tag in selected_sessions:
+        # Output header
+        results.append('~~~ Scimitar - Session: {} ~~~'.format(tag))
+        try:
+            ind_rec, cout, tout, lout = sessions_history[tag][index]
+            if ind_rec:
+                # Check the type of indicator
+                if ind_rec[0] == mi.indicator_error:
+                    results.append(format_error(ind_rec[1]))
+                elif ind_rec[0] == mi.indicator_exit:
+                    session_manager.remove(tag)
+                    results.append(format_error('Session {} died.', tag))
+                else:
+                    results.append(cout)
+            else:
+                results.append(''.join([cout, tout, lout]))
+        except IndexError:
+            results.append(format_error('Scimitar: Record does not exist'))
+    return modes.debugging, '\n'.join(results)
 
 
 def gdb_exec(cmd):
 
-    def _ensure_sessions_selected():
-        if not selected_sessions:
-            raise errors.CommandFailedError(
-                'gdb:cmd(?)',
-                'No session(s) selected. Debugging mode failed to start. (Maybe init_debugging_mode() was not called?)'
-            )
+    class RemoteCommandExecutingThread(threading.Thread):
+        '''This thread type is responsible for running commands on terminal
+        '''
 
-    def _ensure_valid_sessions_selected():
-        non_existing_sessions = [
-            id for id in selected_sessions if not session_manager.exists(id)
-        ]
-        if non_existing_sessions:
-            raise errors.BadArgsError(
-                'gdb:cmd(?)', 'Cannot proceed. Dead session(s): {0}.'.
-                format(', '.format(non_existing_sessions))
-            )
+        def __init__(self, term, cmd):
+            super(RemoteCommandExecutingThread, self).__init__()
+            self.term = term
+            self.cmd = cmd
+            self.error = None
+            self.result = None
+
+        def run(self):
+            try:
+                self._run()
+            except Exception as e:
+                self.error = e
+
+        def _run(self):
+            # Send the command
+            gdb_response = self.term.query(self.cmd)
+            # In case GDB dies 
+            if gdb_response in (r'^exit', r'^kill'):
+                raise console.SessionDiedError
+            else:
+                self.result = mi.parse(gdb_response)
+
+        def report(self):
+            if self.error:
+                raise self.error
+            return self.result
 
     def _sanitize_gdb_command(cmd):
         if cmd and not repr_str_dict.has_key(cmd[0]):
@@ -250,8 +284,8 @@ def gdb_exec(cmd):
                 sessions_history[tag].append(mi_response)
                 # Output header
                 results.append('~~~ Scimitar - Session: {} ~~~'.format(tag))
-                ind_rec, cout, tout, lout = sessions_history[tag][-1]
-                # Check the type of indicator we got
+                ind_rec, cout, tout, lout = mi_response
+                # Check the type of indicator
                 if ind_rec[0] == mi.indicator_error:
                     results.append(format_error(ind_rec[1]))
                 elif ind_rec[0] == mi.indicator_exit:
@@ -272,9 +306,9 @@ def gdb_exec(cmd):
     #
 
     # Ensure there are selected sessions
-    _ensure_sessions_selected()
+    _ensure_sessions_selected('gdb:cmd(?)')
     # Make sure selected sessions are valid
-    _ensure_valid_sessions_selected()
+    _ensure_valid_sessions_selected('gdb:cmd(?)')
 
     # GDB launch command
     cmd = _sanitize_gdb_command(cmd)

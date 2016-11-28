@@ -221,8 +221,6 @@ def _attach_pids(pid_dict):
 
         mgr.add(session)
         msgs[tag] = mi_response
-        r, c, t, l = mi_response
-        print_out(''.join([c, t, l]))
 
     print_info('Beginning debugging session...')
     return mgr, msgs
