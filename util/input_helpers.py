@@ -126,7 +126,12 @@ def init_terminal():
     history.load_history()
 
     # Tab completion
-    readline.parse_and_bind('tab: complete')
+    # On Mac libedit's used for tab completion
+    if 'libedit' in readline.__doc__:
+        readline.parse_and_bind("bind '\t' rl_complete")
+    # Assuming it's going to be GNU readline
+    else:
+        readline.parse_and_bind('tab: complete')
 
 
 def register_completer(cmpl_type):
