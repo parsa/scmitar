@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Scimitar: Ye Distributed Debugger
-# 
+#
 # Copyright (c) 2016 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
@@ -16,43 +16,44 @@ import re
 class HPXThread():
 
     class Context(object):
+        def get_reg(self, reg):
+            test = gdb.parse_and_eval('$' + reg)
+            return test;
 
-        def __init__(self):
-
-            self.pc = get_reg('pc')
-            self.r15 = get_reg('r15')
-            self.r14 = get_reg('r14')
-            self.r13 = get_reg('r13')
-            self.r12 = get_reg('r12')
-            self.rdx = get_reg('rdx')
-            self.rax = get_reg('rax')
-            self.rbx = get_reg('rbx')
-            self.rbp = get_reg('rbp')
-            self.sp = get_reg('sp')
-
-        def get_reg(reg):
-            return gdb.parse_and_eval('$' + reg)
-
-        def set_reg(reg, value):
+        def set_reg(self, reg, value):
             gdb.execute(
                 'set ${reg} = 0x{val:x}'.format(
-                    reg = reg, val = value & 2 ** 64 - 1
+                    reg = reg, val = (int("%d" % value) & (2 ** 64 - 1))
                 )
             )
 
-        def switch(self):
-            prev_ctx = self
+        def __init__(self):
 
-            set_reg('pc', self.pc)
-            set_reg('r15', self.r15)
-            set_reg('r14', self.r14)
-            set_reg('r13', self.r13)
-            set_reg('r12', self.r12)
-            set_reg('rdx', self.rdx)
-            set_reg('rax', self.rax)
-            set_reg('rbx', self.rbx)
-            set_reg('rbp', self.rbp)
-            set_reg('sp', self.sp)
+            self.pc = self.get_reg('pc')
+            self.r15 = self.get_reg('r15')
+            self.r14 = self.get_reg('r14')
+            self.r13 = self.get_reg('r13')
+            self.r12 = self.get_reg('r12')
+            self.rdx = self.get_reg('rdx')
+            self.rax = self.get_reg('rax')
+            self.rbx = self.get_reg('rbx')
+            self.rbp = self.get_reg('rbp')
+            self.sp = self.get_reg('sp')
+
+        def switch(self):
+            #prev_ctx = self
+            prev_ctx = HPXThread.Context()
+
+            self.set_reg('pc', self.pc)
+            self.set_reg('r15', self.r15)
+            self.set_reg('r14', self.r14)
+            self.set_reg('r13', self.r13)
+            self.set_reg('r12', self.r12)
+            self.set_reg('rdx', self.rdx)
+            self.set_reg('rax', self.rax)
+            self.set_reg('rbx', self.rbx)
+            self.set_reg('rbp', self.rbp)
+            self.set_reg('sp', self.sp)
 
             return prev_ctx
 
@@ -66,31 +67,31 @@ class HPXThread():
         #           hpx::threads::thread_state_ex_enum
         #       >, void>
         #    > = { m_storage = 360569445166350338 }, <No data fields>
-        #  }, 
-        #  component_id_ = 8198320, 
-        #  description_ = thread_description {{ [desc] {0x7ffff4aa0cb5 'call_startup_functions_action'} }}, 
-        #  lco_description_ = thread_description {{ [desc] {0x7ffff4918a9d '<unknown>'} }}, 
-        #  parent_locality_id_ = 0, 
-        #  parent_thread_id_ = 0x7f3090, 
-        #  parent_thread_phase_ = 1, 
-        #  marked_state_ = hpx::threads::unknown, 
-        #  priority_ = hpx::threads::thread_priority_normal, 
-        #  requested_interrupt_ = false, 
-        #  enabled_interrupt_ = true, 
-        #  ran_exit_funcs_ = false, 
-        #  exit_funcs_ = std::deque with 0 elements, 
-        #  scheduler_base_ = 0x7cf5b8, 
+        #  },
+        #  component_id_ = 8198320,
+        #  description_ = thread_description {{ [desc] {0x7ffff4aa0cb5 'call_startup_functions_action'} }},
+        #  lco_description_ = thread_description {{ [desc] {0x7ffff4918a9d '<unknown>'} }},
+        #  parent_locality_id_ = 0,
+        #  parent_thread_id_ = 0x7f3090,
+        #  parent_thread_phase_ = 1,
+        #  marked_state_ = hpx::threads::unknown,
+        #  priority_ = hpx::threads::thread_priority_normal,
+        #  requested_interrupt_ = false,
+        #  enabled_interrupt_ = true,
+        #  ran_exit_funcs_ = false,
+        #  exit_funcs_ = std::deque with 0 elements,
+        #  scheduler_base_ = 0x7cf5b8,
         #  count_ = {
         #    value_ = {
         #      <boost::atomics::detail::base_atomic<long, int>> = {
         #        m_storage = 1
         #      }, <No data fields>
         #    }
-        #  }, 
-        #  stacksize_ = 131072, 
+        #  },
+        #  stacksize_ = 131072,
         #  coroutine_ = {
         #    m_pimpl = (boost::intrusive_ptr<hpx::threads::coroutines::detail::coroutine_impl>) 0x7fffee728180
-        #  }, 
+        #  },
         #  pool_ = 0x7e9a60
         #}
 
@@ -104,23 +105,21 @@ class HPXThread():
         self.description = self.thread_data['description_']
         self.lco_description = self.thread_data['lco_description_']
 
-        combined_state = self.thread_data['current_state_']['m_storage']
-
-        current_state_type = gdb.lookup_type('hpx::threads::thread_state_enum')
-        self.state = combined_state >> 56 & 0xff
-        self.state = self.state.cast(current_state_type)
-
-        current_state_ex_type = gdb.lookup_type(
-            'hpx::threads::thread_state_ex_enum'
-        )
-        self.state_ex = combined_state >> 48 & 0xff
-        self.state_ex = self.state_ex.cast(current_state_ex_type)
-
         self.size_t = gdb.lookup_type('std::size_t')
+        combined_state = self.thread_data['current_state_']#['m_storage']
+        combined_state_type = combined_state.type.template_argument(0)
+        state_enum_type = combined_state_type.template_argument(0)
+        state_ex_enum_type = combined_state_type.template_argument(1)
+        combined_state = int('%d' % combined_state['m_storage'].cast(self.size_t))
+
+
+        self.state = gdb.Value((combined_state >> 56) & 0xff).cast(state_enum_type)
+        self.state_ex = gdb.Value((combined_state >> 48) & 0xff).cast(state_ex_enum_type)
+
         stack = self.m_sp.reinterpret_cast(self.size_t)
 
         self.context = HPXThread.Context()
-        self.context.pc = self.deref_stack(stack + (8 * 8))
+        self.context.pc = self.deref_stack(stack + (64))
         self.context.r15 = self.deref_stack(stack + (8 * 0))
         self.context.r14 = self.deref_stack(stack + (8 * 1))
         self.context.r13 = self.deref_stack(stack + (8 * 2))
@@ -134,7 +133,7 @@ class HPXThread():
         prev_context = self.context.switch()
         frame = gdb.newest_frame()
         function_name = frame.name()
-        p = re.compile('^hpx::util::coroutines.*$')
+        p = re.compile('^hpx::threads::coroutines.*$')
 
         try:
             while p.match(function_name):
@@ -167,7 +166,7 @@ class HPXThread():
         return addr.reinterpret_cast(self.size_t.pointer()).dereference()
 
     def info(self):
-        gdb.write('  Thread 0x{addr:x}\n'.format(addr = self.id))
+        gdb.write('  Thread {addr}\n'.format(addr = self.id))
         if self.m_sp.reinterpret_cast(self.m_sp.dereference().type
                                       ) > self.stack_end:
             gdb.write('  This thread has a stack overflow\n')

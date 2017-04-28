@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Scimitar: Ye Distributed Debugger
-# 
+#
 # Copyright (c) 2016 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
@@ -148,10 +148,14 @@ class HPXSelectThreadCommand(gdb.Command):
             state.restore()
             return
 
-        if argv[0].beginswith('0x'):
+        if argv[0][0:2] == '0x':#.beginswith('0x'):
             thread_id = gdb.Value(int(argv[0], 16))
         else:
             thread_id = gdb.Value(int(argv[0]))
+
+        print('%s %x' % (argv[0][0:2], thread_id))
+
+        thread_id = thread_id.reinterpret_cast(gdb.lookup_type('hpx::threads::thread_data').pointer())
 
         thread = HPXThread(thread_id)
 

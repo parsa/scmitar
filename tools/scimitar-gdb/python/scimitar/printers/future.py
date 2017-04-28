@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Scimitar: Ye Distributed Debugger
-# 
+#
 # Copyright (c) 2016 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
@@ -21,7 +21,11 @@ class FuturePrinter(object):
         # Values
         self.px = self.val['shared_state_']['px']
         self.state_ = self.px['state_']
-        self.storage_ = self.px['storage_']
+        if 'storage_' in self.px:
+            self.storage_ = self.px['storage_']
+        else:
+            self.storage_ = None
+
         # Template type
         self.tmpl = str(self.val.type.template_argument(0))
         # Conditions
@@ -36,8 +40,9 @@ class FuturePrinter(object):
 
         if self.is_void:
             if self.is_exception:
-                value_t = gdb.lookup_type('boost::exception_ptr').pointer()
-                self.value = self.storage_.address.cast(value_t).dereference()
+                #value_t = gdb.lookup_type('boost::exception_ptr').pointer()
+                #self.value = self.storage_.address.cast(value_t).dereference()
+                pass
         else:
             if self.is_value:
                 value_t = gdb.lookup_type(self.tmpl).pointer()
@@ -58,8 +63,9 @@ class FuturePrinter(object):
     def children(self):
         result = []
         if self.is_void:
-            if self.is_exception:
-                result.extend([('value', self.value), ])
+            pass
+            #if self.is_exception:
+            #    result.extend([('value', self.value), ])
         else:
             if self.is_value:
                 result.extend([('value', self.value), ])
