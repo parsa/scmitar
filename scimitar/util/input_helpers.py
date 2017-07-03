@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Scimitar: Ye Distributed Debugger
-# 
+#
 # Copyright (c) 2016 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
@@ -126,10 +126,11 @@ def init_terminal():
     history.load_history()
 
     # Tab completion
-    # On Mac libedit's used for tab completion
-    if 'libedit' in readline.__doc__:
+    # On Mac libedit is used for tab completion
+    # __doc__ may not be defined in Windows
+    if readline.__doc__ and 'libedit' in readline.__doc__:
         readline.parse_and_bind("bind '\t' rl_complete")
-    # Assuming it's going to be GNU readline
+    # Assume GNU readline
     else:
         readline.parse_and_bind('tab: complete')
 

@@ -10,6 +10,6 @@
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
 
-VERSION = '0.3.203 build 3491'
+VERSION = '0.3.203 build 3494'
 
 # vim: :ai:sw=4:ts=4:sts=4:et:ft=python:fo=corqj2:sm:tw=79:

@@ -2,21 +2,22 @@
 # -*- coding: utf-8 -*-
 #
 # Scimitar: Ye Distributed Debugger
-# 
-# Copyright (c) 2016 Parsa Amini
+#
+# Copyright (c) 2016-2017 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
 #
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
-import signal
-from sys import stdout
-import time
+#import signal
+#from sys import stdout
+#import time
 import thread
-import threading
+#import threading
 
-from util import vt100, print_out, print_ahead, print_error, raw_input_async, repr_str, cleanup_terminal, init_terminal, register_completer
+#from util import print_ahead
+from util import vt100, print_out, print_error, raw_input_async, repr_str, cleanup_terminal, init_terminal, register_completer
 from __ver__ import VERSION
 from sessions import modes, offline_session, debug_session
 import config
@@ -24,25 +25,25 @@ import errors
 
 # Constants
 BANNER = '''
-                                                                          7?$7: 
+                                                                          7?$7:
    ____       _           _ _                                          +DDO7I~+.
   / ___|  ___(_)_ __ ___ (_) |_ __ _ _ __                    .I:    .NDDOZ?. ...
-  \___ \ / __| | '_ ` _ \| | __/ _` | '__|                    .+~  DDD8Z+.      
-   ___) | (__| | | | | | | | || (_| | |                       .7?IDD8Z+.        
-  |____/ \___|_|_| |_| |_|_|\__\__,_|_|   (alpha)            .$?I+=$=.          
-                                                          .?77$=+..?.           
-            {get_version_result}                        .III77777,.:I.          
-                                                     .~?????I,?.    .~.         
-                                                  ..?++++?=?+.                  
-                                                .?+++++I 7:                     
-                                             .+????+I.$+.                       
-                                          .+?????I,7+.                          
-                                    ..:=+++++?I:7=.                             
-+.                       .       ,~~~===++++,$=.                                
- .:77$7777I?~~++=?IIII?++++=====~~~~~~=~.$?,                                    
-    .=777777III????????+++?=:?~=~~,.?I~..                                       
-        ,+77I????++++++=+++=,,I7+:.                                             
-           . ..,:~====~::,.                                                     
+  \___ \ / __| | '_ ` _ \| | __/ _` | '__|                    .+~  DDD8Z+.
+   ___) | (__| | | | | | | | || (_| | |                       .7?IDD8Z+.
+  |____/ \___|_|_| |_| |_|_|\__\__,_|_|   (alpha)            .$?I+=$=.
+                                                          .?77$=+..?.
+            {get_version_result}                        .III77777,.:I.
+                                                     .~?????I,?.    .~.
+                                                  ..?++++?=?+.
+                                                .?+++++I 7:
+                                             .+????+I.$+.
+                                          .+?????I,7+.
+                                    ..:=+++++?I:7=.
++.                       .       ,~~~===++++,$=.
+ .:77$7777I?~~++=?IIII?++++=====~~~~~~=~.$?,
+    .=777777III????????+++?=:?~=~~,.?I~..
+        ,+77I????++++++=+++=,,I7+:.
+           . ..,:~====~::,.
 
 Copyright (C) 2016 Parsa Amini
 Copyright (C) 2016 Hartmut Kaiser

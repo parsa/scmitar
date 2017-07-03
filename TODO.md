@@ -10,8 +10,8 @@
   * asyncio_processing_loop (`939bad3d2718407e8b07176c14839ba0`)
   * live_output (`b09de9acc7ad476fb09ce2dd4bd1ad69`)
 * UI
-  * ui_wxwidgets (`f49ea035cbc845099ac8356d9147dfb0`)
-  * ui_curses (`c68045350edc449a90b1dbc4ddbeeb08`)
+  * ui_prompt_toolkit (`26e3c2d2ae0239993eb5fe3fa015b126`)
+  * ui_qt (`a6774b4ac2646bf9cad9687bad92b087`)
 * Pretty Printers
   * natvis_transformer (`fecd531769f64374a7848815c9299e57`)
 * Interaction with HPX Runtime
