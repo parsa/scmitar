@@ -10,6 +10,8 @@
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
 
+from __future__ import unicode_literals
+
 settings = {
     'ui': {
         'prompts': [

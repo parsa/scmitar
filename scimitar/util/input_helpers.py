@@ -2,7 +2,7 @@
 #
 # Scimitar: Ye Distributed Debugger
 #
-# Copyright (c) 2016 Parsa Amini
+# Copyright (c) 2016-2017 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
 #
@@ -12,11 +12,11 @@
 from sys import exit
 from datetime import datetime as time
 import signal
-import readline
 import re
 import select
 import print_helpers
-import history
+import prompt_toolkit as ptk
+import os.path
 
 from . import signals
 from . import vt100 as v
@@ -24,48 +24,10 @@ from config import settings
 
 signals_config = settings['signals']
 FORMAT_CONSTS = {'u1': v.format._underline_on, 'u0': v.format._underline_off}
+history_file = None
+custom_completer_type = None
 
 
-# NOTE: What did I write this function for?
-def stream_readline(stream):
-    return stream.readline()
-
-
-# NOTE: I don't remember why I wrote this one either
-def stream_writeline(msg, stream):
-    stream.write(msg)
-    stream.flush()
-
-
-def attempt_read(stream, retries = -1, timeout = -1, pattern = None):
-    """Tries to read until a condition is met.
-    Returns empty if nothing was read."""
-    before_read = time.now()
-
-    is_ready = select.poll()
-    is_ready.register(stream, select.POLLIN)
-
-    out_text = ''
-    q = 0
-    while True:
-        if timeout > 0 and (time.now() - before_read).seconds >= timeout:
-            break
-
-        if not is_ready.poll(0):
-            q += 1
-            if retries > 0 and q >= retries:
-                break
-            else:
-                continue
-
-        if pattern and re.search(pattern, out_text):
-            break
-
-        out_text += stream_readline(stream)
-    return out_text
-
-
-# MERGE: asyncio_processing_loop (939bad3d2718407e8b07176c14839ba0)
 def raw_input_async(prompt = '', timeout = 5):
     """This is a blocking user input read function.
     It has to be running inside the main thread because it contains code handling signals.
@@ -78,7 +40,7 @@ def raw_input_async(prompt = '', timeout = 5):
     #signal.alarm(timeout)
 
     try:
-        text = raw_input(prompt)
+        text = ptk.prompt(prompt, patch_stdout=True, history=history_file, completer=custom_completer_type)
         text_parts = text.split()
         #signal.alarm(0)
         return text_parts, None
@@ -113,6 +75,10 @@ def raw_input_async(prompt = '', timeout = 5):
         return None, '\x03'
     except EOFError: # <C-d> EOT (End of Transmission) 0x04
         return None, '\x04'
+    # Possibly raised when history file is not accessible
+    #    IOError: [Errno 13] Permission denied: u'<PATH>'
+    except IOError as e:
+        raise e
     finally:
         signal.signal(signal.SIGTSTP, signal.SIG_DFL)
         signal.signal(signal.SIGQUIT, signal.SIG_DFL)
@@ -122,26 +88,19 @@ def raw_input_async(prompt = '', timeout = 5):
 
 
 def init_terminal():
-    # Init readline
-    history.load_history()
-
-    # Tab completion
-    # On Mac libedit is used for tab completion
-    # __doc__ may not be defined in Windows
-    if readline.__doc__ and 'libedit' in readline.__doc__:
-        readline.parse_and_bind("bind '\t' rl_complete")
-    # Assume GNU readline
-    else:
-        readline.parse_and_bind('tab: complete')
+    # Load history
+    global history_file
+    history_file_path = os.path.join(os.path.expanduser('~'), '.scimitar_history')
+    history_file = ptk.history.FileHistory(history_file_path)
 
 
 def register_completer(cmpl_type):
-    readline.set_completer(cmpl_type)
+    global custom_completer_type
+    custom_completer_type = cmpl_type
 
 
 def cleanup_terminal():
     # Clean up the terminal before letting go
-    history.save_history()
     v.unlock_keyboard()
     v.format.clear_all_chars_attrs()
 

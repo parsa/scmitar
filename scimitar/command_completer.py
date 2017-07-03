@@ -9,10 +9,10 @@
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
-import readline
+import prompt_toolkit as ptk
 
 
-class CommandCompleter(object):
+class CommandCompleter(ptk.completion.Completer):
 
     def __init__(self):
         self.current_candidates = []
@@ -56,14 +56,17 @@ class CommandCompleter(object):
             except (KeyError, IndexError):
                 self.matches = []
 
-    def complete(self, text, state):
-        if state == 0:
-            self._build_match_list(
-                readline.get_line_buffer(),
-                readline.get_begidx(), readline.get_endidx()
-            )
+    def get_completions(self, document, complete_event):
+        line_buffer = document.current_line
+        begidx = document.cursor_position - len(document.get_word_before_cursor())
+        endidx = document.cursor_position
+
+        self._build_match_list(line_buffer, begidx, endidx)
+
         try:
-            return self.matches[state]
+            if not self.matches:
+                return []
+            return [ptk.completion.Completion(i, start_position=-len(last_word)) for i in self.matches]
         except IndexError:
             pass
         #except Exception as e:

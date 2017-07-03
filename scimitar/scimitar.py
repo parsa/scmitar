@@ -10,6 +10,8 @@
 # Distributed under the Boost Software License, Version 1.0. (See accompanying
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
+
+from __future__ import unicode_literals
 #import signal
 #from sys import stdout
 #import time
@@ -18,6 +20,7 @@ import thread
 
 #from util import print_ahead
 from util import vt100, print_out, print_error, raw_input_async, repr_str, cleanup_terminal, init_terminal, register_completer
+import prompt_toolkit as ptk
 from __ver__ import VERSION
 from sessions import modes, offline_session, debug_session
 import config
@@ -69,8 +72,8 @@ def noise():
 
 
 completer_switcher = {
-    modes.offline: offline_session.OfflineSessionCommandCompleter().complete,
-    modes.debugging: debug_session.DebugSessionCommandCompleter().complete,
+    modes.offline: offline_session.OfflineSessionCommandCompleter(),
+    modes.debugging: debug_session.DebugSessionCommandCompleter(),
     modes.quit: None,
 }
 
@@ -89,7 +92,7 @@ def main():
         vt100.terminal.reset()
 
         # Ahoy
-        print_out(BANNER)
+        print(BANNER)
 
         # Initial session mode
         current_mode = modes.offline
