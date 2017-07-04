@@ -2,7 +2,7 @@
 #
 # Scimitar: Ye Distributed Debugger
 # 
-# Copyright (c) 2016 Parsa Amini
+# Copyright (c) 2016-2017 Parsa Amini
 # Copyright (c) 2016 Hartmut Kaiser
 # Copyright (c) 2016 Thomas Heller
 #
